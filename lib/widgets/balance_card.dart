@@ -29,8 +29,8 @@ class BalanceCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).primaryColor,
-              Theme.of(context).primaryColor.withOpacity(0.8),
+              Colors.green,
+              Colors.green.withOpacity(0.8),
             ],
           ),
         ),

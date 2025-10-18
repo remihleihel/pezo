@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/database_provider.dart';
 import 'providers/budget_provider.dart';
+import 'providers/account_provider.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -12,12 +13,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('Main: Flutter binding initialized');
   
-  // Initialize database
+  // Create database provider (but don't initialize yet)
   print('Main: Creating DatabaseProvider...');
   final databaseProvider = DatabaseProvider();
-  print('Main: Initializing database...');
-  await databaseProvider.initDatabase();
-  print('Main: Database initialization completed');
+  print('Main: Database provider created');
   
   print('Main: Starting app...');
   runApp(MyApp(databaseProvider: databaseProvider));
@@ -57,9 +56,22 @@ class MyApp extends StatelessWidget {
             return previous ?? BudgetProvider(database);
           },
         ),
+        ChangeNotifierProvider(create: (context) {
+          print('MyApp: Creating AccountProvider');
+          final accountProvider = AccountProvider();
+          accountProvider.setDatabaseProvider(databaseProvider);
+          
+          // Set provider references immediately
+          final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+          final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+          accountProvider.setTransactionProvider(transactionProvider);
+          accountProvider.setBudgetProvider(budgetProvider);
+          
+          return accountProvider;
+        }),
       ],
       child: MaterialApp(
-        title: 'WIS - What I Spent',
+        title: 'Pezo - Never run out of Pesos',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,

@@ -323,7 +323,7 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${_isIncome ? 'Income' : 'Expense'} added successfully!'),
-            backgroundColor: _isIncome ? Colors.green : Colors.red,
+            backgroundColor: _isIncome ? (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green) : Colors.red,
           ),
         );
       } catch (e) {

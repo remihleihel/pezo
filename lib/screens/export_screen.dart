@@ -5,8 +5,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/budget_provider.dart';
 import '../models/transaction.dart';
+import '../models/budget.dart';
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -42,6 +45,8 @@ class _ExportScreenState extends State<ExportScreen> {
             _buildPreviewSection(),
             const SizedBox(height: 20),
             _buildExportButton(),
+            const SizedBox(height: 20),
+            _buildRestoreSection(),
           ],
         ),
       ),
@@ -277,6 +282,42 @@ class _ExportScreenState extends State<ExportScreen> {
     );
   }
 
+  Widget _buildRestoreSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Restore Data',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Import previously exported data to restore your transactions and budgets.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _restoreData,
+                icon: const Icon(Icons.upload),
+                label: const Text('Import Data File'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _getFormatDescription(String format) {
     switch (format) {
       case 'JSON':
@@ -378,7 +419,7 @@ class _ExportScreenState extends State<ExportScreen> {
       Navigator.pop(context);
 
       // Share the file
-      await Share.shareXFiles([XFile(filePath)], text: 'WIS Export');
+      await Share.shareXFiles([XFile(filePath)], text: 'Pezo Export');
 
       // Show success dialog
       _showSuccessDialog('Data exported successfully!\n\nFile: $fileName\n\nShared via system share dialog.');
@@ -432,7 +473,7 @@ class _ExportScreenState extends State<ExportScreen> {
     // For PDF, we'll create a simple text-based report
     final buffer = StringBuffer();
     
-    buffer.writeln('WIS - WHAT I SPENT EXPORT REPORT');
+    buffer.writeln('PEZO - NEVER RUN OUT OF PESOS EXPORT REPORT');
     buffer.writeln('=' * 40);
     buffer.writeln('Export Date: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}');
     buffer.writeln('Date Range: ${DateFormat('yyyy-MM-dd').format(_startDate)} to ${DateFormat('yyyy-MM-dd').format(_endDate)}');
@@ -499,6 +540,301 @@ class _ExportScreenState extends State<ExportScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Export Error'),
         content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _restoreData() async {
+    try {
+      // Show file picker
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json', 'csv', 'txt'],
+        allowMultiple: false,
+      );
+
+      if (result == null) {
+        return; // User cancelled
+      }
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+      
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Restoring data...'),
+            ],
+          ),
+        ),
+      );
+
+      // Read and parse the file
+      final String content = await file.readAsString();
+      final Map<String, dynamic>? data = await _parseRestoreFile(content, fileName);
+      
+      if (data == null) {
+        Navigator.pop(context); // Close loading dialog
+        _showErrorDialog('Failed to parse the selected file. Please make sure it\'s a valid Pezo export file.');
+        return;
+      }
+
+      // Restore the data
+      await _importData(data);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show success dialog
+      _showRestoreSuccessDialog(data);
+
+    } catch (e) {
+      // Close loading dialog if it's open
+      Navigator.pop(context);
+      _showErrorDialog('Failed to restore data: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> _parseRestoreFile(String content, String fileName) async {
+    try {
+      // Try to parse as JSON first
+      if (fileName.toLowerCase().endsWith('.json')) {
+        final Map<String, dynamic> data = jsonDecode(content);
+        
+        // Validate that it's a Pezo export file
+        if (data.containsKey('export_date') && data.containsKey('transactions')) {
+          return data;
+        }
+      }
+      
+      // Try to parse as CSV
+      if (fileName.toLowerCase().endsWith('.csv')) {
+        return await _parseCSVFile(content);
+      }
+      
+      // Try to parse as text/PDF
+      if (fileName.toLowerCase().endsWith('.txt')) {
+        return await _parseTextFile(content);
+      }
+      
+      return null;
+    } catch (e) {
+      print('Error parsing file: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _parseCSVFile(String content) async {
+    try {
+      final lines = content.split('\n');
+      if (lines.length < 2) return null;
+      
+      final header = lines[0].split(',');
+      final transactions = <Map<String, dynamic>>[];
+      
+      for (int i = 1; i < lines.length; i++) {
+        if (lines[i].trim().isEmpty) continue;
+        
+        final values = _parseCSVLine(lines[i]);
+        if (values.length >= 5) {
+          transactions.add({
+            'title': values[1].replaceAll('"', ''),
+            'amount': double.tryParse(values[2]) ?? 0.0,
+            'type': values[3].toLowerCase() == 'income' ? 'income' : 'expense',
+            'category': values[4].replaceAll('"', ''),
+            'date': DateTime.tryParse(values[0])?.toIso8601String() ?? DateTime.now().toIso8601String(),
+            'description': values.length > 5 ? values[5].replaceAll('"', '') : null,
+            'merchant_name': values.length > 6 ? values[6].replaceAll('"', '') : null,
+            'is_from_receipt': values.length > 7 ? values[7].toLowerCase() == 'yes' : false,
+          });
+        }
+      }
+      
+      return {
+        'export_date': DateTime.now().toIso8601String(),
+        'transaction_count': transactions.length,
+        'transactions': transactions,
+      };
+    } catch (e) {
+      print('Error parsing CSV: $e');
+      return null;
+    }
+  }
+
+  List<String> _parseCSVLine(String line) {
+    final List<String> result = [];
+    bool inQuotes = false;
+    String current = '';
+    
+    for (int i = 0; i < line.length; i++) {
+      final char = line[i];
+      
+      if (char == '"') {
+        inQuotes = !inQuotes;
+      } else if (char == ',' && !inQuotes) {
+        result.add(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.add(current);
+    return result;
+  }
+
+  Future<Map<String, dynamic>?> _parseTextFile(String content) async {
+    try {
+      // Parse the Pezo text export format
+      final lines = content.split('\n');
+      final transactions = <Map<String, dynamic>>[];
+      
+      String? currentDate;
+      String? currentTitle;
+      
+      for (int i = 0; i < lines.length; i++) {
+        final line = lines[i]; // Don't trim here to preserve leading spaces
+        final trimmedLine = line.trim();
+        
+        // Look for transaction header lines: "2025-01-01 | Transaction Name"
+        if (trimmedLine.contains('|') && !line.startsWith('  ') && !trimmedLine.startsWith('SUMMARY:') && !trimmedLine.startsWith('TRANSACTIONS:') && !trimmedLine.startsWith('PEZO') && !trimmedLine.startsWith('=') && !trimmedLine.startsWith('-') && !trimmedLine.startsWith('Export Date:') && !trimmedLine.startsWith('Date Range:') && !trimmedLine.startsWith('Total Transactions:')) {
+          final parts = trimmedLine.split('|');
+          if (parts.length >= 2) {
+            currentDate = parts[0].trim();
+            currentTitle = parts[1].trim();
+          }
+        }
+        // Look for transaction detail lines: "  EXPENSE | $10.00 | Category"
+        else if (line.startsWith('  ') && trimmedLine.contains('|') && trimmedLine.contains('\$') && currentDate != null && currentTitle != null && (trimmedLine.startsWith('EXPENSE') || trimmedLine.startsWith('INCOME'))) {
+          final parts = trimmedLine.split('|');
+          if (parts.length >= 3) {
+            final type = parts[0].trim().toLowerCase();
+            final amountPart = parts[1].trim();
+            final category = parts[2].trim();
+            
+            // Extract amount (look for $X.XX pattern)
+            final amountMatch = RegExp(r'\$(\d+\.?\d*)').firstMatch(amountPart);
+            final amount = amountMatch != null ? double.tryParse(amountMatch.group(1)!) ?? 0.0 : 0.0;
+            
+            if (amount > 0) {
+              final transaction = {
+                'title': currentTitle,
+                'amount': amount,
+                'type': type,
+                'category': category,
+                'date': DateTime.tryParse(currentDate)?.toIso8601String() ?? DateTime.now().toIso8601String(),
+                'description': 'Imported from text file',
+                'is_from_receipt': 0, // Use 0 for false, 1 for true (database format)
+              };
+              transactions.add(transaction);
+            }
+            
+            // Reset for next transaction
+            currentDate = null;
+            currentTitle = null;
+          }
+        }
+      }
+      
+      if (transactions.isNotEmpty) {
+        return {
+          'export_date': DateTime.now().toIso8601String(),
+          'transaction_count': transactions.length,
+          'transactions': transactions,
+        };
+      }
+      
+      return null;
+    } catch (e) {
+      print('Error parsing text file: $e');
+      return null;
+    }
+  }
+
+  Future<void> _importData(Map<String, dynamic> data) async {
+    final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+    
+    // Import transactions
+    if (data.containsKey('transactions')) {
+      final List<dynamic> transactionsData = data['transactions'];
+      
+      for (final transactionData in transactionsData) {
+        try {
+          final transaction = Transaction.fromJson(transactionData);
+          await transactionProvider.addTransaction(transaction);
+        } catch (e) {
+          print('Error importing transaction: $e');
+        }
+      }
+    }
+    
+    // Import budgets if available
+    if (data.containsKey('budgets')) {
+      final List<dynamic> budgetsData = data['budgets'];
+      
+      for (final budgetData in budgetsData) {
+        try {
+          final budget = Budget.fromJson(budgetData);
+          await budgetProvider.addBudget(budget);
+        } catch (e) {
+          print('Error importing budget: $e');
+        }
+      }
+    }
+    
+    // Import spending goals if available
+    if (data.containsKey('spending_goals')) {
+      final List<dynamic> goalsData = data['spending_goals'];
+      
+      for (final goalData in goalsData) {
+        try {
+          final goal = SpendingGoal.fromJson(goalData);
+          await budgetProvider.addSpendingGoal(goal);
+        } catch (e) {
+          print('Error importing spending goal: $e');
+        }
+      }
+    }
+  }
+
+  void _showRestoreSuccessDialog(Map<String, dynamic> data) {
+    final transactionCount = data['transaction_count'] ?? 0;
+    final budgetCount = data['budgets']?.length ?? 0;
+    final goalCount = data['spending_goals']?.length ?? 0;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore Complete'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Data restored successfully!'),
+            const SizedBox(height: 16),
+            Text('• Transactions: $transactionCount'),
+            if (budgetCount > 0) Text('• Budgets: $budgetCount'),
+            if (goalCount > 0) Text('• Spending Goals: $goalCount'),
+            const SizedBox(height: 16),
+            const Text(
+              'Your data has been imported into the current account. You can now view all your transactions and budgets in the app.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

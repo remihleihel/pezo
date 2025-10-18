@@ -7,13 +7,13 @@ import '../widgets/balance_card.dart';
 import '../widgets/quick_actions.dart';
 import '../widgets/recent_transactions_list.dart';
 import '../widgets/spending_chart.dart';
-import '../widgets/wis_logo.dart';
+import '../widgets/pezo_logo.dart';
 import 'add_transaction_screen.dart';
 import 'edit_transaction_screen.dart';
 import 'analytics_screen.dart';
 import 'receipt_scanner_screen.dart';
 import 'settings_screen.dart';
-import 'debug_receipt_screen.dart';
+import 'should_i_buy_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,8 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const DashboardTab(),
+  List<Widget> get _screens => [
+    DashboardTab(onNavigateToTransactions: () => setState(() => _selectedIndex = 1)),
     const TransactionsTab(),
     const AnalyticsTab(),
   ];
@@ -42,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Theme.of(context).primaryColor,
+        selectedItemColor: Theme.of(context).brightness == Brightness.dark ? Colors.orange : Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
@@ -80,7 +80,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({super.key});
+  final VoidCallback? onNavigateToTransactions;
+  
+  const DashboardTab({super.key, this.onNavigateToTransactions});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -114,7 +116,7 @@ class _DashboardTabState extends State<DashboardTab> {
       appBar: AppBar(
         title: const Align(
           alignment: Alignment.centerLeft,
-          child: Text('WIS'),
+          child: Text('Pezo'),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -162,10 +164,10 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.bug_report),
+            icon: const Icon(Icons.shopping_cart_checkout),
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const DebugReceiptScreen()),
+              MaterialPageRoute(builder: (context) => const ShouldIBuyScreen()),
             ),
           ),
         ],
@@ -213,6 +215,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   const SizedBox(height: 10),
                   RecentTransactionsList(
                     transactions: filteredTransactions.take(10).toList(),
+                    onViewAllTransactions: widget.onNavigateToTransactions,
                   ),
                   const SizedBox(height: 20),
                   const Text(

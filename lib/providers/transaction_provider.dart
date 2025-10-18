@@ -10,7 +10,7 @@ class TransactionProvider with ChangeNotifier {
 
   TransactionProvider(this._databaseProvider) {
     print('TransactionProvider: Constructor called');
-    loadTransactions();
+    // Don't load transactions here - let AccountProvider control when to load
   }
 
   List<Transaction> get transactions => _transactions;

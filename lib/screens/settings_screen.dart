@@ -5,6 +5,7 @@ import '../providers/database_provider.dart';
 // import '../services/notification_service.dart';
 import 'budget_screen.dart';
 import 'export_screen.dart';
+import 'account_management_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +26,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
+          _buildSection(
+            'Account Management',
+            [
+              _buildSettingsTile(
+                'Multiple Accounts',
+                'Create and manage multiple accounts with separate data',
+                Icons.people,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AccountManagementScreen()),
+                ),
+              ),
+            ],
+          ),
           _buildSection(
             'Data Management',
             [

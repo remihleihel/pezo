@@ -64,14 +64,14 @@ class BudgetCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '+\$${budget.carriedOverAmount!.toStringAsFixed(0)}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 8,
-                                  color: Colors.green,
+                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -196,7 +196,7 @@ class BudgetCard extends StatelessWidget {
                       : '\$${remaining.toStringAsFixed(2)} remaining',
                   style: TextStyle(
                     fontSize: 12,
-                    color: isOverBudget ? Colors.red : Colors.green,
+                    color: isOverBudget ? Colors.red : (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green),
                     fontWeight: FontWeight.w500,
                   ),
                 ),

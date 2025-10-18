@@ -6,7 +6,7 @@ import '../models/budget.dart';
 
 class DatabaseProvider extends ChangeNotifier {
   static Database? _database;
-  static const String _databaseName = 'wis.db';
+  static String _currentDatabaseName = 'wis_default.db';
   static const int _databaseVersion = 2;
 
   Future<Database> get database async {
@@ -14,12 +14,37 @@ class DatabaseProvider extends ChangeNotifier {
     return _database!;
   }
 
+  // Switch to a different account's database
+  Future<void> switchToAccount(String accountId) async {
+    final newDatabaseName = 'wis_$accountId.db';
+    print('DatabaseProvider: switchToAccount called with accountId: $accountId');
+    print('DatabaseProvider: Current database: $_currentDatabaseName');
+    print('DatabaseProvider: New database: $newDatabaseName');
+    
+    if (_currentDatabaseName != newDatabaseName) {
+      print('DatabaseProvider: Switching databases...');
+      // Close current database
+      if (_database != null) {
+        await _database!.close();
+        _database = null;
+      }
+      
+      _currentDatabaseName = newDatabaseName;
+      // Initialize new database
+      _database = await _initDatabase();
+      notifyListeners();
+      print('DatabaseProvider: Database switch completed');
+    } else {
+      print('DatabaseProvider: Already using correct database');
+    }
+  }
+
   Future<Database> _initDatabase() async {
     print('DatabaseProvider: Initializing database...');
     final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, _databaseName);
+    final path = join(databasesPath, _currentDatabaseName);
     print('DatabaseProvider: Database path: $path');
-    print('DatabaseProvider: Database name: $_databaseName');
+    print('DatabaseProvider: Database name: $_currentDatabaseName');
     print('DatabaseProvider: Database version: $_databaseVersion');
 
     try {

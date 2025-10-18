@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
+import '../providers/account_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -53,7 +55,17 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _startAnimation() async {
     await _animationController.forward();
-    await Future.delayed(const Duration(milliseconds: 1000));
+    
+    // Initialize accounts while showing splash
+    try {
+      final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+      await accountProvider.loadAccounts();
+      print('SplashScreen: Accounts loaded successfully');
+    } catch (e) {
+      print('SplashScreen: Error loading accounts: $e');
+    }
+    
+    await Future.delayed(const Duration(milliseconds: 500));
     
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -117,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
                           child: Image.asset(
-                            'assets/images/WIS-logo.png',
+                            'assets/images/Pezo_logo_background_removed.png',
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               // Fallback if image fails to load
@@ -128,7 +140,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 ),
                                 child: const Center(
                                   child: Text(
-                                    'WIS',
+                                    'Pezo',
                                     style: TextStyle(
                                       fontSize: 32,
                                       fontWeight: FontWeight.bold,
@@ -156,22 +168,12 @@ class _SplashScreenState extends State<SplashScreen>
                     opacity: _fadeAnimation,
                     child: Column(
                       children: [
-                        const Text(
-                          'WIS',
+                        Text(
+                          'Never run out of Pesos',
                           style: TextStyle(
-                            fontSize: 36,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'What I Spent',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.9),
-                            fontStyle: FontStyle.italic,
                             letterSpacing: 1,
                           ),
                         ),

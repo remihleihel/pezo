@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-class WISLogo extends StatelessWidget {
+class PezoLogo extends StatelessWidget {
   final double? width;
   final double? height;
   final Color? color;
   final BoxFit fit;
 
-  const WISLogo({
+  const PezoLogo({
     super.key,
     this.width,
     this.height,
@@ -17,7 +17,7 @@ class WISLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      'assets/images/WIS-logo.png',
+      'assets/Pezo_logo.png',
       width: width,
       height: height,
       fit: fit,
@@ -33,7 +33,7 @@ class WISLogo extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              'WIS',
+              'Pezo',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: (height ?? 40) * 0.4,
@@ -47,13 +47,13 @@ class WISLogo extends StatelessWidget {
   }
 }
 
-class WISLogoWithText extends StatelessWidget {
+class PezoLogoWithText extends StatelessWidget {
   final double? logoSize;
   final double? textSize;
   final Color? textColor;
   final bool showSubtitle;
 
-  const WISLogoWithText({
+  const PezoLogoWithText({
     super.key,
     this.logoSize = 60,
     this.textSize = 24,
@@ -69,13 +69,13 @@ class WISLogoWithText extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        WISLogo(
+        PezoLogo(
           width: logoSize,
           height: logoSize,
         ),
         const SizedBox(height: 8),
         Text(
-          'WIS',
+          'Pezo',
           style: TextStyle(
             fontSize: textSize,
             fontWeight: FontWeight.bold,
@@ -85,7 +85,7 @@ class WISLogoWithText extends StatelessWidget {
         if (showSubtitle) ...[
           const SizedBox(height: 2),
           Text(
-            'What I Spent',
+            'Never run out of Pesos',
             style: TextStyle(
               fontSize: (textSize ?? 24) * 0.5,
               color: effectiveTextColor?.withOpacity(0.7),

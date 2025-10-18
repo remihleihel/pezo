@@ -160,7 +160,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           child: _buildSummaryCard(
             'Income',
             totalIncome,
-            Colors.green,
+            Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green,
             Icons.arrow_upward,
           ),
         ),
@@ -178,7 +178,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           child: _buildSummaryCard(
             'Balance',
             netBalance,
-            netBalance >= 0 ? Colors.green : Colors.red,
+            netBalance >= 0 ? (Colors.green) : Colors.red,
             netBalance >= 0 ? Icons.trending_up : Icons.trending_down,
           ),
         ),
@@ -323,10 +323,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               final isIncome = transaction.type == TransactionType.income;
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: (isIncome ? Colors.green : Colors.red).withOpacity(0.1),
+                  backgroundColor: (isIncome ? (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green) : Colors.red).withOpacity(0.1),
                   child: Icon(
                     isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: isIncome ? Colors.green : Colors.red,
+                    color: isIncome ? (Colors.green) : Colors.red,
                     size: 20,
                   ),
                 ),
@@ -338,7 +338,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   '${isIncome ? '+' : '-'}\$${transaction.amount.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: isIncome ? Colors.green : Colors.red,
+                    color: isIncome ? (Colors.green) : Colors.red,
                   ),
                 ),
               );

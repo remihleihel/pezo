@@ -7,10 +7,12 @@ import '../screens/edit_transaction_screen.dart';
 
 class RecentTransactionsList extends StatelessWidget {
   final List<Transaction> transactions;
+  final VoidCallback? onViewAllTransactions;
 
   const RecentTransactionsList({
     super.key,
     required this.transactions,
+    this.onViewAllTransactions,
   });
 
   @override
@@ -47,10 +49,7 @@ class RecentTransactionsList extends StatelessWidget {
                 style: TextStyle(color: Colors.blue),
               ),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                // Navigate to transactions tab
-                DefaultTabController.of(context)?.animateTo(1);
-              },
+              onTap: onViewAllTransactions,
             ),
         ],
       ),
@@ -59,7 +58,7 @@ class RecentTransactionsList extends StatelessWidget {
 
   Widget _buildTransactionTile(BuildContext context, Transaction transaction) {
     final isIncome = transaction.type == TransactionType.income;
-    final amountColor = isIncome ? Colors.green : Colors.red;
+    final amountColor = isIncome ? (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green) : Colors.red;
     final icon = isIncome ? Icons.arrow_upward : Icons.arrow_downward;
 
     return ListTile(

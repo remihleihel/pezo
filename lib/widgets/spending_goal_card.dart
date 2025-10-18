@@ -168,7 +168,7 @@ class SpendingGoalCard extends StatelessWidget {
                       : '\$${(goal.targetAmount - goal.currentAmount).toStringAsFixed(2)} to go',
                   style: TextStyle(
                     fontSize: 12,
-                    color: goal.isAchieved ? Colors.green : _getGoalColor(),
+                    color: goal.isAchieved ? (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green) : _getGoalColor(),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -179,17 +179,17 @@ class SpendingGoalCard extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: (Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.celebration, color: Colors.green, size: 16),
-                    SizedBox(width: 8),
+                    Icon(Icons.celebration, color: Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green, size: 16),
+                    const SizedBox(width: 8),
                     Text(
                       'Congratulations! You achieved your goal!',
                       style: TextStyle(
-                        color: Colors.green,
+                        color: Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.green,
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
