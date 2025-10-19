@@ -1,11 +1,935 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
+
+// Sophisticated financial analysis classes
+class UserFinance {
+  final double balance;
+  final double monthlyIncome;
+  final double avgDailySpending;
+  final double recurringExpenses;
+  final int daysLeftInMonth;
+  final double? savingsGoal;
+
+  UserFinance({
+    required this.balance,
+    required this.monthlyIncome,
+    required this.avgDailySpending,
+    required this.recurringExpenses,
+    required this.daysLeftInMonth,
+    this.savingsGoal,
+  });
+}
+
+class PurchaseAdvice {
+  final double score;
+  final String decision;
+  final String reasoning;
+  final double immediateBalanceAfterPurchase;
+  final double expectedBalanceAfterPurchase;
+  final double safeThreshold;
+  final double categoryWeight;
+
+  PurchaseAdvice({
+    required this.score,
+    required this.decision,
+    required this.reasoning,
+    required this.immediateBalanceAfterPurchase,
+    required this.expectedBalanceAfterPurchase,
+    required this.safeThreshold,
+    required this.categoryWeight,
+  });
+}
+
+class ShouldIBuyScreen extends StatefulWidget {
+  const ShouldIBuyScreen({super.key});
+
+  @override
+  State<ShouldIBuyScreen> createState() => _ShouldIBuyScreenState();
+}
+
+class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  String _selectedCategory = 'Food & Dining';
+  bool _isRecurring = false;
+  String _recurringFrequency = 'monthly';
+  String? _analysisResult;
+  bool _isAnalyzing = false;
+  AnalysisData? _analysisData;
+  
+  // Category weights for financial wisdom analysis
+  static const Map<String, double> _categoryWeights = {
+    'Food & Dining': 1.0,
+    'Bills & Utilities': 1.0,
+    'Rent': 1.0,
+    'Transportation': 0.8,
+    'Gas': 0.8,
+    'Healthcare': 1.0,
+    'Education': 0.9,
+    'Investment': 0.9,
+    'Entertainment': 0.6,
+    'Shopping': 0.4,
+    'Luxury': 0.4,
+    'Fashion': 0.4,
+    'Technology': 0.4,
+    'Gift': 0.7,
+    'Charity': 0.7,
+    'Other': 0.6,
+    'Salary': 1.0,
+    'Freelance': 1.0,
+    'Refund': 1.0,
+  };
+
+  final List<String> _categories = [
+    'Food & Dining',
+    'Transportation',
+    'Shopping',
+    'Entertainment',
+    'Bills & Utilities',
+    'Healthcare',
+    'Education',
+    'Investment',
+    'Luxury',
+    'Fashion',
+    'Technology',
+    'Gift',
+    'Charity',
+    'Other',
+  ];
+
+  final List<String> _recurringFrequencies = [
+    'weekly',
+    'monthly',
+    'yearly',
+  ];
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _analyzePurchase() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzing = true;
+      _analysisResult = null;
+      _analysisData = null;
+    });
+
+    try {
+      final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+      final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+      
+      final transactions = transactionProvider.transactions;
+      final budgets = budgetProvider.budgets;
+      final savingsGoals = budgetProvider.savingsGoals;
+      
+      // Get comprehensive financial data
+      final financialData = _getFinancialData(transactions, savingsGoals);
+      
+      // Perform sophisticated financial analysis
+      final advice = _performFinancialAnalysis(
+        amount: amount,
+        category: _selectedCategory,
+        financialData: financialData,
+        budgets: budgets,
+      );
+
+      final analysisData = _createAnalysisData(
+        amount: amount,
+        category: _selectedCategory,
+        financialData: financialData,
+        advice: advice,
+        budgets: budgets,
+      );
+
+      setState(() {
+        _analysisResult = advice.decision;
+        _analysisData = analysisData;
+        _isAnalyzing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+        _analysisResult = 'Error analyzing purchase: $e';
+      });
+    }
+  }
+
+
+  // Sophisticated financial analysis function
+  PurchaseAdvice _shouldIBuyIt({
+    required UserFinance user,
+    required double amount,
+    required String category,
+    bool isRecurring = false,
+    String? frequency,
+  }) {
+    // Category weights (how important/essential it is)
+    final weight = _categoryWeights[category] ?? 0.6;
+
+    // Step 1: Project remaining monthly expenses
+    final projectedRemainingExpenses =
+        (user.avgDailySpending * user.daysLeftInMonth) + user.recurringExpenses;
+
+    // Step 2: Handle recurring purchase
+    double projectedCostThisMonth = amount;
+    double recurringMonthlyEquivalent = 0;
+
+    if (isRecurring) {
+      switch (frequency?.toLowerCase()) {
+        case 'weekly':
+          recurringMonthlyEquivalent = amount * 4.3;
+          break;
+        case 'monthly':
+          recurringMonthlyEquivalent = amount;
+          break;
+        case 'yearly':
+          recurringMonthlyEquivalent = amount / 12;
+          break;
+        default:
+          recurringMonthlyEquivalent = amount;
+      }
+      projectedCostThisMonth = recurringMonthlyEquivalent;
+    }
+
+    // Step 3: Calculate immediate and projected balances
+    final immediateBalanceAfterPurchase = user.balance - amount;
+    final expectedBalanceAfterPurchase =
+        user.balance - projectedCostThisMonth - projectedRemainingExpenses;
+
+    // Step 4: Safe spending threshold (30% of income)
+    final safeThreshold = user.monthlyIncome * 0.3;
+
+    // Step 5: Affordability score (0–100)
+    double affordability = ((expectedBalanceAfterPurchase / safeThreshold) * 50) +
+        (weight * 50);
+    
+    // Apply savings goal penalty if applicable
+    if (user.savingsGoal != null && immediateBalanceAfterPurchase < user.savingsGoal!) {
+      affordability -= 20; // Reduce score by 20 points if below savings goal
+    }
+    
+    affordability = affordability.clamp(0, 100);
+
+    // Step 6: Decision based on score
+    String message;
+    if (affordability >= 80) {
+      message = "✅ Go for it — you're in a great financial spot.";
+    } else if (affordability >= 60) {
+      message = "🟡 You can buy it, but monitor your spending this month.";
+    } else if (affordability >= 40) {
+      message = "🟠 Think twice — this may tighten your budget.";
+    } else {
+      message = "🔴 Not recommended — it'll likely hurt your balance.";
+    }
+
+    // Step 7: Reasoning message
+    String reason =
+        "After this ${isRecurring ? 'recurring ' : ''}purchase, your projected end-of-month balance would be \$${expectedBalanceAfterPurchase.toStringAsFixed(2)}, with a safe zone of \$${safeThreshold.toStringAsFixed(2)}.";
+
+    if (isRecurring) {
+      reason +=
+          " Since this is a recurring ${frequency ?? 'monthly'} expense, your monthly budget will shrink by approximately \$${recurringMonthlyEquivalent.toStringAsFixed(2)}.";
+    }
+
+    if (user.savingsGoal != null && immediateBalanceAfterPurchase < user.savingsGoal!) {
+      reason += " Note: This purchase would put you below your savings goal of \$${user.savingsGoal!.toStringAsFixed(2)}.";
+    }
+
+    return PurchaseAdvice(
+      score: double.parse(affordability.toStringAsFixed(1)),
+      decision: message,
+      reasoning: reason,
+      immediateBalanceAfterPurchase: immediateBalanceAfterPurchase,
+      expectedBalanceAfterPurchase: expectedBalanceAfterPurchase,
+      safeThreshold: safeThreshold,
+      categoryWeight: weight,
+    );
+  }
+
+  // Get comprehensive financial data for analysis
+  Map<String, dynamic> _getFinancialData(List<Transaction> transactions, List<SavingsGoal> savingsGoals) {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    final daysLeftInMonth = endOfMonth.day - now.day + 1;
+    
+    // Get current month transactions
+    final monthlyTransactions = transactions.where((t) => 
+      t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+      t.date.isBefore(endOfMonth.add(const Duration(days: 1)))
+    ).toList();
+    
+    // Calculate monthly income and expenses
+    final monthlyIncome = monthlyTransactions
+        .where((t) => t.type == TransactionType.income)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final monthlyExpenses = monthlyTransactions
+        .where((t) => t.type == TransactionType.expense)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    // Calculate average daily spending
+    final daysPassed = now.day;
+    final avgDailySpending = daysPassed > 0 ? monthlyExpenses / daysPassed : 0.0;
+    
+    // Calculate total balance (all time)
+    final totalIncome = transactions
+        .where((t) => t.type == TransactionType.income)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final totalExpenses = transactions
+        .where((t) => t.type == TransactionType.expense)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final currentBalance = totalIncome - totalExpenses;
+    
+    // Calculate average monthly income (from last 3 months)
+    final threeMonthsAgo = DateTime(now.year, now.month - 3, 1);
+    final recentTransactions = transactions.where((t) => 
+      t.date.isAfter(threeMonthsAgo.subtract(const Duration(days: 1)))
+    ).toList();
+    
+    final recentIncome = recentTransactions
+        .where((t) => t.type == TransactionType.income)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final avgMonthlyIncome = recentIncome / 3;
+    
+    // Calculate recurring expenses (bills, subscriptions, etc.)
+    final recurringExpenses = monthlyTransactions
+        .where((t) => t.type == TransactionType.expense && 
+                     (t.category == 'Bills & Utilities' || 
+                      t.category == 'Rent' || 
+                      t.category == 'Healthcare'))
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    // Calculate category spending
+    final categorySpending = monthlyTransactions
+        .where((t) => t.type == TransactionType.expense)
+        .fold<Map<String, double>>({}, (map, t) {
+      map[t.category] = (map[t.category] ?? 0.0) + t.amount;
+      return map;
+    });
+    
+    // Use actual savings goals from user's savings goals, or fall back to 20% rule
+    double? actualSavingsGoal;
+    if (savingsGoals.isNotEmpty) {
+      // Use the highest target amount from savings goals as savings goal
+      actualSavingsGoal = savingsGoals
+          .map((goal) => goal.targetAmount)
+          .reduce((a, b) => a > b ? a : b);
+    } else {
+      // Fall back to 20% of monthly income if no goals set
+      actualSavingsGoal = avgMonthlyIncome > 0 ? avgMonthlyIncome * 0.2 : null;
+    }
+    
+    return {
+      'currentBalance': currentBalance,
+      'monthlyIncome': monthlyIncome,
+      'avgMonthlyIncome': avgMonthlyIncome,
+      'monthlyExpenses': monthlyExpenses,
+      'avgDailySpending': avgDailySpending,
+      'daysLeftInMonth': daysLeftInMonth,
+      'daysPassed': daysPassed,
+      'recurringExpenses': recurringExpenses,
+      'categorySpending': categorySpending,
+      'monthlyTransactions': monthlyTransactions,
+      'savingsGoal': actualSavingsGoal,
+    };
+  }
+
+  // Perform sophisticated financial analysis using the new system
+  PurchaseAdvice _performFinancialAnalysis({
+    required double amount,
+    required String category,
+    required Map<String, dynamic> financialData,
+    required List<Budget> budgets,
+  }) {
+    final currentBalance = financialData['currentBalance'] as double;
+    final avgMonthlyIncome = financialData['avgMonthlyIncome'] as double;
+    final avgDailySpending = financialData['avgDailySpending'] as double;
+    final daysLeftInMonth = financialData['daysLeftInMonth'] as int;
+    final recurringExpenses = financialData['recurringExpenses'] as double;
+    final savingsGoal = financialData['savingsGoal'] as double?;
+    
+    // Create UserFinance object
+    final userFinance = UserFinance(
+      balance: currentBalance,
+      monthlyIncome: avgMonthlyIncome,
+      avgDailySpending: avgDailySpending,
+      recurringExpenses: recurringExpenses,
+      daysLeftInMonth: daysLeftInMonth,
+      savingsGoal: savingsGoal,
+    );
+    
+    // Use the sophisticated analysis function
+    return _shouldIBuyIt(
+      user: userFinance,
+      amount: amount,
+      category: category,
+      isRecurring: _isRecurring,
+      frequency: _isRecurring ? _recurringFrequency : null,
+    );
+  }
+
+  AnalysisData _createAnalysisData({
+    required double amount,
+    required String category,
+    required Map<String, dynamic> financialData,
+    required PurchaseAdvice advice,
+    required List<Budget> budgets,
+  }) {
+    final currentBalance = financialData['currentBalance'] as double;
+    final avgDailySpending = financialData['avgDailySpending'] as double;
+    final monthlyExpenses = financialData['monthlyExpenses'] as double;
+    final categorySpending = (financialData['categorySpending'] as Map<String, double>)[category] ?? 0.0;
+    final daysLeftInMonth = financialData['daysLeftInMonth'] as int;
+    final recurringExpenses = financialData['recurringExpenses'] as double;
+    
+    // Calculate correct metrics using the sophisticated analysis
+    final currentDay = DateTime.now().day;
+    final dailyAverage = avgDailySpending;
+    
+    // Project remaining expenses for the month
+    final projectedRemainingExpenses = (avgDailySpending * daysLeftInMonth) + recurringExpenses;
+    
+    // Calculate projected monthly spending (based on current daily average)
+    final projectedMonthly = avgDailySpending * 30;
+    
+    // Calculate projected spending after this purchase
+    double monthlyEquivalent = amount;
+    if (_isRecurring) {
+      switch (_recurringFrequency.toLowerCase()) {
+        case 'weekly':
+          monthlyEquivalent = amount * 4.3; // 4.3 weeks per month
+          break;
+        case 'monthly':
+          monthlyEquivalent = amount;
+          break;
+        case 'yearly':
+          monthlyEquivalent = amount / 12;
+          break;
+      }
+    } else {
+      // For one-time purchases, don't add to monthly projection
+      monthlyEquivalent = 0;
+    }
+    
+    // Projected monthly spending after this purchase (only if recurring)
+    final afterPurchaseProjected = _isRecurring ? projectedMonthly + monthlyEquivalent : projectedMonthly;
+    
+    // Calculate category metrics
+    final categoryPercentage = monthlyExpenses > 0 ? (categorySpending / monthlyExpenses * 100).toDouble() : 0.0;
+    final averageCategorySpending = categorySpending / currentDay;
+    final projectedCategoryMonthly = averageCategorySpending * 30;
+    
+    // Convert PurchaseAdvice to AnalysisData format
+    String recommendation;
+    String recommendationIcon;
+    Color recommendationColor;
+    
+    if (advice.score >= 80) {
+      recommendation = "GO FOR IT";
+      recommendationIcon = "✅";
+      recommendationColor = Colors.green;
+    } else if (advice.score >= 60) {
+      recommendation = "PROCEED WITH CAUTION";
+      recommendationIcon = "🟡";
+      recommendationColor = Colors.orange;
+    } else if (advice.score >= 40) {
+      recommendation = "THINK TWICE";
+      recommendationIcon = "🟠";
+      recommendationColor = Colors.deepOrange;
+    } else {
+      recommendation = "NOT RECOMMENDED";
+      recommendationIcon = "🔴";
+      recommendationColor = Colors.red;
+    }
+    
+    // Create comprehensive risk factors based on the sophisticated analysis
+    final riskFactors = <String>[];
+    
+    // Add the main reasoning from PurchaseAdvice
+    riskFactors.add(advice.reasoning);
+    
+    // Add specific risk factors
+    if (advice.expectedBalanceAfterPurchase < 0) {
+      riskFactors.add("⚠️ This purchase would put you in deficit by \$${(-advice.expectedBalanceAfterPurchase).toStringAsFixed(2)}");
+    }
+    
+    if (advice.expectedBalanceAfterPurchase < advice.safeThreshold) {
+      riskFactors.add("⚠️ End-of-month balance would be below safe threshold (\$${advice.safeThreshold.toStringAsFixed(2)})");
+    }
+    
+    if (_isRecurring) {
+      riskFactors.add("📅 This recurring ${_recurringFrequency} expense will cost \$${monthlyEquivalent.toStringAsFixed(2)} per month");
+    } else {
+      riskFactors.add("💳 This is a one-time purchase - no ongoing monthly cost");
+    }
+    
+    // Add category-specific insights
+        if (advice.categoryWeight < 0.5) {
+          riskFactors.add("💡 This is a low-priority category (${(advice.categoryWeight * 100).toStringAsFixed(0)}% weight) - consider if it's essential");
+        }
+        
+        // Check for budget warnings
+        final categoryBudget = budgets.firstWhere(
+          (budget) => budget.category == category,
+          orElse: () => Budget(
+            category: category,
+            amount: 0,
+            month: DateTime.now().month.toString(),
+            year: DateTime.now().year,
+          ),
+        );
+        
+        if (categoryBudget.amount > 0) {
+          final currentCategorySpending = categorySpending;
+          final budgetAfterPurchase = currentCategorySpending + amount;
+          final budgetUsed = (currentCategorySpending / categoryBudget.effectiveAmount * 100).toDouble();
+          final budgetAfterPurchasePercent = (budgetAfterPurchase / categoryBudget.effectiveAmount * 100).toDouble();
+          
+          if (budgetAfterPurchase > categoryBudget.effectiveAmount) {
+            riskFactors.add("⚠️ This purchase will put you OVER your \$${categoryBudget.effectiveAmount.toStringAsFixed(2)} budget for $category by \$${(budgetAfterPurchase - categoryBudget.effectiveAmount).toStringAsFixed(2)}");
+          } else if (budgetAfterPurchasePercent > 80) {
+            riskFactors.add("⚠️ This purchase will use ${budgetAfterPurchasePercent.toStringAsFixed(0)}% of your $category budget - you're approaching the limit");
+          }
+        }
+    
+    return AnalysisData(
+      recommendation: recommendation,
+      recommendationIcon: recommendationIcon,
+      recommendationColor: recommendationColor,
+      currentBalance: currentBalance,
+      balanceAfterPurchase: advice.immediateBalanceAfterPurchase,
+      purchaseAmount: amount,
+      dailyAverage: dailyAverage,
+      projectedMonthly: projectedMonthly,
+      afterPurchaseProjected: afterPurchaseProjected,
+      categorySpending: categorySpending,
+      categoryPercentage: categoryPercentage,
+      averageCategorySpending: averageCategorySpending,
+      projectedCategoryMonthly: projectedCategoryMonthly,
+      riskFactors: riskFactors,
+      hasBudget: false, // Simplified for new system
+      budgetUsed: null,
+      budgetAfterPurchase: null,
+      budgetAmount: null,
+    );
+  }
+
+  Widget _buildAnalysisResult(BuildContext context) {
+    if (_analysisData == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Main recommendation card
+        Card(
+          color: _analysisData!.recommendationColor.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      _analysisData!.recommendationIcon,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _analysisData!.recommendation,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _analysisData!.recommendationColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _getRecommendationSubtitle(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Financial metrics
+        Row(
+          children: [
+            Expanded(
+              child: _buildBalanceCard(
+                'Current Balance',
+                _analysisData!.currentBalance,
+                Icons.account_balance_wallet,
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildBalanceCard(
+                'After Purchase',
+                _analysisData!.balanceAfterPurchase,
+                Icons.shopping_cart,
+                _analysisData!.balanceAfterPurchase < 0 ? Colors.red : Colors.green,
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Spending analysis
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Spending Analysis',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildMetricCard(
+                  'Daily Average',
+                  '\$${_analysisData!.dailyAverage.toStringAsFixed(2)}',
+                  Icons.trending_up,
+                ),
+                _buildMetricCard(
+                  'Projected Monthly',
+                  '\$${_analysisData!.projectedMonthly.toStringAsFixed(2)}',
+                  Icons.calendar_month,
+                ),
+                _buildMetricCard(
+                  'Category Spending',
+                  '\$${_analysisData!.categorySpending.toStringAsFixed(2)}',
+                  Icons.category,
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Risk factors
+        if (_analysisData!.riskFactors.isNotEmpty)
+          Card(
+            color: Colors.red.withOpacity(0.1),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '⚠️ Important Considerations',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._analysisData!.riskFactors.map((factor) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $factor',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  )),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _getRecommendationSubtitle() {
+    if (_analysisData == null) return '';
+    
+    switch (_analysisData!.recommendation) {
+      case 'GO FOR IT':
+        return 'You\'re in a great financial position for this purchase.';
+      case 'PROCEED WITH CAUTION':
+        return 'You can afford it, but monitor your spending this month.';
+      case 'THINK TWICE':
+        return 'This purchase could strain your budget.';
+      case 'NOT RECOMMENDED':
+        return 'This purchase would significantly impact your finances.';
+      default:
+        return 'Analysis complete';
+    }
+  }
+
+  Widget _buildBalanceCard(String title, double amount, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '\$${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(String title, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Should I Buy It?'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Input form
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Purchase Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount',
+                          prefixText: '\$',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter an amount';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category,
+                            child: Text(category),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Description (Optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Recurring payment section
+                      Card(
+                        color: Colors.grey[50],
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Payment Type',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile(
+                                title: const Text('Recurring Payment'),
+                                subtitle: const Text('This is a subscription or recurring expense'),
+                                value: _isRecurring,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isRecurring = value;
+                                  });
+                                },
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              if (_isRecurring) ...[
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  value: _recurringFrequency,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Frequency',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: _recurringFrequencies.map((frequency) {
+                                    return DropdownMenuItem(
+                                      value: frequency,
+                                      child: Text(frequency.toUpperCase()),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _recurringFrequency = value!;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isAnalyzing ? null : _analyzePurchase,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: _isAnalyzing
+                              ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Analyzing...'),
+                                  ],
+                                )
+                              : const Text('Analyze Purchase'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Analysis result
+            if (_analysisResult != null) _buildAnalysisResult(context),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class AnalysisData {
   final String recommendation;
@@ -47,1298 +971,4 @@ class AnalysisData {
     this.budgetAfterPurchase,
     this.budgetAmount,
   });
-}
-
-class ShouldIBuyScreen extends StatefulWidget {
-  const ShouldIBuyScreen({super.key});
-
-  @override
-  State<ShouldIBuyScreen> createState() => _ShouldIBuyScreenState();
-}
-
-class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  String _selectedCategory = 'Food & Dining';
-  String? _analysisResult;
-  bool _isAnalyzing = false;
-  AnalysisData? _analysisData;
-
-  final List<String> _categories = [
-    'Food & Dining',
-    'Transportation',
-    'Shopping',
-    'Entertainment',
-    'Bills & Utilities',
-    'Healthcare',
-    'Education',
-    'Travel',
-    'Groceries',
-    'Gas',
-    'Other',
-  ];
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _analyzePurchase() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isAnalyzing = true;
-      _analysisResult = null;
-      _analysisData = null;
-    });
-
-    final amount = double.tryParse(_amountController.text) ?? 0.0;
-    final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
-    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
-
-    // Get current month's data
-    final now = DateTime.now();
-    final startOfMonth = DateTime(now.year, now.month, 1);
-    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-
-    // Get transactions for current month
-    final monthlyTransactions = transactionProvider.transactions
-        .where((t) => t.date.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
-                     t.date.isBefore(endOfMonth.add(const Duration(days: 1))) &&
-                     t.type == TransactionType.expense)
-        .toList();
-
-    // Get budget for selected category
-    final budgets = budgetProvider.budgets
-        .where((b) => b.category == _selectedCategory &&
-                     b.month == now.month &&
-                     b.year == now.year)
-        .toList();
-
-    // Calculate spending in this category
-    final categorySpending = monthlyTransactions
-        .where((t) => t.category == _selectedCategory)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    // Calculate total spending
-    final totalSpending = monthlyTransactions.fold(0.0, (sum, t) => sum + t.amount);
-
-    // Get available balance (total across all time)
-    final totalIncome = transactionProvider.totalIncome;
-    final totalExpenses = transactionProvider.totalExpenses;
-    final availableBalance = totalIncome - totalExpenses;
-
-    // Perform analysis
-    final analysis = _performAnalysis(
-      amount: amount,
-      category: _selectedCategory,
-      categorySpending: categorySpending,
-      totalSpending: totalSpending,
-      availableBalance: availableBalance,
-      budgets: budgets,
-      monthlyTransactions: monthlyTransactions,
-    );
-
-    // Create structured analysis data
-    final analysisData = _createAnalysisData(
-      amount: amount,
-      category: _selectedCategory,
-      categorySpending: categorySpending,
-      totalSpending: totalSpending,
-      availableBalance: availableBalance,
-      budgets: budgets,
-      monthlyTransactions: monthlyTransactions,
-    );
-
-    setState(() {
-      _analysisResult = analysis;
-      _analysisData = analysisData;
-      _isAnalyzing = false;
-    });
-  }
-
-  String _performAnalysis({
-    required double amount,
-    required String category,
-    required double categorySpending,
-    required double totalSpending,
-    required double availableBalance,
-    required List<Budget> budgets,
-    required List<Transaction> monthlyTransactions,
-  }) {
-    final buffer = StringBuffer();
-    
-    // Check available balance
-    if (availableBalance < amount) {
-      buffer.writeln('❌ **INSUFFICIENT FUNDS**');
-      buffer.writeln('You need \$${NumberFormat('#,##0.00').format(amount - availableBalance)} more to make this purchase.');
-      buffer.writeln('Current available balance: \$${NumberFormat('#,##0.00').format(availableBalance)}');
-      return buffer.toString();
-    }
-
-    // Check category budget
-    if (budgets.isNotEmpty) {
-      final budget = budgets.first;
-      final budgetUsed = categorySpending / budget.effectiveAmount;
-      final afterPurchase = (categorySpending + amount) / budget.effectiveAmount;
-
-      if (afterPurchase > 1.0) {
-        buffer.writeln('⚠️ **OVER BUDGET WARNING**');
-        buffer.writeln('This purchase would exceed your \$${_selectedCategory} budget.');
-        buffer.writeln('Budget: \$${NumberFormat('#,##0.00').format(budget.effectiveAmount)}');
-        buffer.writeln('Already spent: \$${NumberFormat('#,##0.00').format(categorySpending)} (${(budgetUsed * 100).toStringAsFixed(1)}%)');
-        buffer.writeln('After purchase: \$${NumberFormat('#,##0.00').format(categorySpending + amount)} (${(afterPurchase * 100).toStringAsFixed(1)}%)');
-        
-        if (afterPurchase > 1.2) {
-          buffer.writeln('\n❌ **NOT RECOMMENDED** - Would exceed budget by ${((afterPurchase - 1) * 100).toStringAsFixed(1)}%');
-        } else {
-          buffer.writeln('\n⚠️ **PROCEED WITH CAUTION** - Close to budget limit');
-        }
-      } else if (budgetUsed > 0.8) {
-        buffer.writeln('⚠️ **BUDGET ALERT**');
-        buffer.writeln('You\'ve already used ${(budgetUsed * 100).toStringAsFixed(1)}% of your \$${_selectedCategory} budget.');
-        buffer.writeln('After this purchase: ${(afterPurchase * 100).toStringAsFixed(1)}%');
-        buffer.writeln('\n✅ **ACCEPTABLE** - Within budget limits');
-      } else {
-        buffer.writeln('✅ **WITHIN BUDGET**');
-        buffer.writeln('You\'ve used ${(budgetUsed * 100).toStringAsFixed(1)}% of your \$${_selectedCategory} budget.');
-        buffer.writeln('After this purchase: ${(afterPurchase * 100).toStringAsFixed(1)}%');
-        buffer.writeln('\n✅ **GOOD TO GO** - Plenty of budget remaining');
-      }
-    } else {
-      buffer.writeln('ℹ️ **NO BUDGET SET**');
-      buffer.writeln('You haven\'t set a budget for \$${_selectedCategory}.');
-      buffer.writeln('Analysis based on your spending history and patterns.');
-    }
-
-    // Spending pattern analysis
-    final currentDay = DateTime.now().day;
-    final dailyAverage = totalSpending / currentDay;
-    final projectedMonthly = dailyAverage * 30;
-    final afterPurchaseProjected = (totalSpending + amount) / currentDay * 30;
-
-    buffer.writeln('\n💰 **BALANCE IMPACT**');
-    buffer.writeln('Current balance: \$${NumberFormat('#,##0.00').format(availableBalance)}');
-    buffer.writeln('Balance after purchase: \$${NumberFormat('#,##0.00').format(availableBalance - amount)}');
-    buffer.writeln('Purchase amount: \$${NumberFormat('#,##0.00').format(amount)}');
-
-    buffer.writeln('\n📊 **SPENDING ANALYSIS**');
-    buffer.writeln('Daily average spending: \$${NumberFormat('#,##0.00').format(dailyAverage)}');
-    buffer.writeln('Projected monthly spending: \$${NumberFormat('#,##0.00').format(projectedMonthly)}');
-    buffer.writeln('After this purchase: \$${NumberFormat('#,##0.00').format(afterPurchaseProjected)}');
-
-    // Show historical insights if no budget is set
-    if (budgets.isEmpty) {
-      final categoryPercentage = totalSpending > 0 ? (categorySpending / totalSpending * 100) : 0;
-      final averageCategorySpending = categorySpending / currentDay;
-      final projectedCategoryMonthly = averageCategorySpending * 30;
-      
-      buffer.writeln('\n📈 **HISTORICAL INSIGHTS**');
-      buffer.writeln('Category spending this month: \$${NumberFormat('#,##0.00').format(categorySpending)}');
-      buffer.writeln('Category % of total spending: ${categoryPercentage.toStringAsFixed(1)}%');
-      buffer.writeln('Daily average in this category: \$${NumberFormat('#,##0.00').format(averageCategorySpending)}');
-      buffer.writeln('Projected monthly in this category: \$${NumberFormat('#,##0.00').format(projectedCategoryMonthly)}');
-    }
-
-    // Category spending comparison (only show if budget is set)
-    if (budgets.isNotEmpty) {
-      final categoryPercentage = (categorySpending / totalSpending * 100);
-      buffer.writeln('\n📈 **CATEGORY BREAKDOWN**');
-      buffer.writeln('\$${_selectedCategory} spending: \$${NumberFormat('#,##0.00').format(categorySpending)} (${categoryPercentage.toStringAsFixed(1)}% of total)');
-    }
-
-    // Final recommendation
-    buffer.writeln('\n🎯 **RECOMMENDATION**');
-    if (availableBalance < amount) {
-      buffer.writeln('❌ **DON\'T BUY** - Insufficient funds');
-    } else if (budgets.isNotEmpty) {
-      // Budget-based recommendation
-      final budgetRatio = (categorySpending + amount) / budgets.first.effectiveAmount;
-      if (budgetRatio > 1.2) {
-        buffer.writeln('❌ **DON\'T BUY** - Would significantly exceed budget');
-      } else if (budgetRatio > 1.0) {
-        buffer.writeln('⚠️ **THINK TWICE** - Would exceed budget');
-      } else if (budgetRatio > 0.8) {
-        buffer.writeln('⚠️ **BE CAREFUL** - Getting close to budget limit');
-      } else {
-        buffer.writeln('✅ **GO AHEAD** - Good financial decision');
-      }
-    } else {
-      // No budget - use historical analysis
-      final recommendation = _getHistoricalRecommendation(
-        amount: amount,
-        availableBalance: availableBalance,
-        categorySpending: categorySpending,
-        totalSpending: totalSpending,
-        dailyAverage: dailyAverage,
-        projectedMonthly: projectedMonthly,
-        afterPurchaseProjected: afterPurchaseProjected,
-      );
-      buffer.writeln(recommendation);
-    }
-
-    return buffer.toString();
-  }
-
-  String _getHistoricalRecommendation({
-    required double amount,
-    required double availableBalance,
-    required double categorySpending,
-    required double totalSpending,
-    required double dailyAverage,
-    required double projectedMonthly,
-    required double afterPurchaseProjected,
-  }) {
-    // Calculate spending velocity and balance sustainability
-    final balanceAfterPurchase = availableBalance - amount;
-    final balanceRatio = balanceAfterPurchase / availableBalance;
-    final spendingVelocity = dailyAverage * 30; // Monthly spending rate
-    final monthsOfBalance = balanceAfterPurchase / spendingVelocity;
-    
-    // Category spending analysis
-    final categoryRatio = categorySpending / totalSpending;
-    final categoryAfterPurchase = (categorySpending + amount) / (totalSpending + amount);
-    
-    // Historical spending trend analysis
-    final spendingIncrease = (afterPurchaseProjected - projectedMonthly) / projectedMonthly;
-    
-    // Decision matrix based on multiple factors
-    int riskScore = 0;
-    String riskFactors = '';
-    
-    // Balance impact analysis
-    if (balanceRatio < 0.1) {
-      riskScore += 3;
-      riskFactors += '• Very low remaining balance\n';
-    } else if (balanceRatio < 0.2) {
-      riskScore += 2;
-      riskFactors += '• Low remaining balance\n';
-    } else if (balanceRatio < 0.5) {
-      riskScore += 1;
-      riskFactors += '• Moderate balance impact\n';
-    }
-    
-    // Spending velocity analysis
-    if (monthsOfBalance < 1) {
-      riskScore += 3;
-      riskFactors += '• Less than 1 month of spending left\n';
-    } else if (monthsOfBalance < 2) {
-      riskScore += 2;
-      riskFactors += '• Less than 2 months of spending left\n';
-    } else if (monthsOfBalance < 3) {
-      riskScore += 1;
-      riskFactors += '• Less than 3 months of spending left\n';
-    }
-    
-    // Category concentration analysis
-    if (categoryAfterPurchase > 0.4) {
-      riskScore += 2;
-      riskFactors += '• High category concentration\n';
-    } else if (categoryAfterPurchase > 0.3) {
-      riskScore += 1;
-      riskFactors += '• Moderate category concentration\n';
-    }
-    
-    // Spending trend analysis
-    if (spendingIncrease > 0.3) {
-      riskScore += 2;
-      riskFactors += '• Significant spending increase\n';
-    } else if (spendingIncrease > 0.15) {
-      riskScore += 1;
-      riskFactors += '• Moderate spending increase\n';
-    }
-    
-    // Generate recommendation based on risk score
-    if (riskScore >= 6) {
-      return '❌ **DON\'T BUY** - High financial risk\n$riskFactors';
-    } else if (riskScore >= 4) {
-      return '⚠️ **THINK TWICE** - Moderate financial risk\n$riskFactors';
-    } else if (riskScore >= 2) {
-      return '⚠️ **BE CAREFUL** - Some financial concerns\n$riskFactors';
-    } else {
-      return '✅ **GO AHEAD** - Good financial decision based on your spending patterns';
-    }
-  }
-
-  AnalysisData _createAnalysisData({
-    required double amount,
-    required String category,
-    required double categorySpending,
-    required double totalSpending,
-    required double availableBalance,
-    required List<Budget> budgets,
-    required List<Transaction> monthlyTransactions,
-  }) {
-    final currentDay = DateTime.now().day;
-    final dailyAverage = totalSpending / currentDay;
-    final projectedMonthly = dailyAverage * 30;
-    final afterPurchaseProjected = (totalSpending + amount) / currentDay * 30;
-    final categoryPercentage = totalSpending > 0 ? (categorySpending / totalSpending * 100) : 0;
-    final averageCategorySpending = categorySpending / currentDay;
-    final projectedCategoryMonthly = averageCategorySpending * 30;
-
-    // Determine recommendation
-    String recommendation;
-    String recommendationIcon;
-    Color recommendationColor;
-    List<String> riskFactors = [];
-
-    if (availableBalance < amount) {
-      recommendation = "DON'T BUY";
-      recommendationIcon = "❌";
-      recommendationColor = Colors.red;
-      riskFactors.add("Insufficient funds");
-    } else if (budgets.isNotEmpty) {
-      final budget = budgets.first;
-      final budgetRatio = (categorySpending + amount) / budget.effectiveAmount;
-      
-      if (budgetRatio > 1.2) {
-        recommendation = "DON'T BUY";
-        recommendationIcon = "❌";
-        recommendationColor = Colors.red;
-        riskFactors.add("Would significantly exceed budget");
-      } else if (budgetRatio > 1.0) {
-        recommendation = "THINK TWICE";
-        recommendationIcon = "⚠️";
-        recommendationColor = Colors.orange;
-        riskFactors.add("Would exceed budget");
-      } else if (budgetRatio > 0.8) {
-        recommendation = "BE CAREFUL";
-        recommendationIcon = "⚠️";
-        recommendationColor = Colors.orange;
-        riskFactors.add("Getting close to budget limit");
-      } else {
-        recommendation = "GO AHEAD";
-        recommendationIcon = "✅";
-        recommendationColor = const Color(0xFF4CAF50);
-      }
-    } else {
-      // Historical analysis
-      final balanceAfterPurchase = availableBalance - amount;
-      final balanceRatio = balanceAfterPurchase / availableBalance;
-      final spendingVelocity = dailyAverage * 30;
-      final monthsOfBalance = balanceAfterPurchase / spendingVelocity;
-      final categoryAfterPurchase = (categorySpending + amount) / (totalSpending + amount);
-      final spendingIncrease = (afterPurchaseProjected - projectedMonthly) / projectedMonthly;
-      
-      int riskScore = 0;
-      
-      // For very small purchases (under $5), be more lenient
-      if (amount < 5) {
-        // Only check for insufficient funds for small purchases
-        if (availableBalance < amount) {
-          riskScore = 10; // Force DON'T BUY
-        } else {
-          riskScore = 0; // Force GO AHEAD
-        }
-      } else {
-      
-      if (balanceRatio < 0.1) {
-        riskScore += 3;
-        riskFactors.add("Very low remaining balance");
-      } else if (balanceRatio < 0.2) {
-        riskScore += 2;
-        riskFactors.add("Low remaining balance");
-      } else if (balanceRatio < 0.5) {
-        riskScore += 1;
-        riskFactors.add("Moderate balance impact");
-      }
-      
-      if (monthsOfBalance < 1) {
-        riskScore += 3;
-        riskFactors.add("Less than 1 month of spending left");
-      } else if (monthsOfBalance < 2) {
-        riskScore += 2;
-        riskFactors.add("Less than 2 months of spending left");
-      } else if (monthsOfBalance < 3) {
-        riskScore += 1;
-        riskFactors.add("Less than 3 months of spending left");
-      }
-      
-      // Only consider category concentration risk for purchases over $5
-      if (amount > 5) {
-        if (categoryAfterPurchase > 0.4) {
-          riskScore += 2;
-          riskFactors.add("High category concentration");
-        } else if (categoryAfterPurchase > 0.3) {
-          riskScore += 1;
-          riskFactors.add("Moderate category concentration");
-        }
-      }
-      
-      // Only consider spending increase risk for purchases over $10
-      if (amount > 10) {
-        if (spendingIncrease > 0.3) {
-          riskScore += 2;
-          riskFactors.add("Significant spending increase");
-        } else if (spendingIncrease > 0.15) {
-          riskScore += 1;
-          riskFactors.add("Moderate spending increase");
-        }
-      }
-      }
-      
-      if (riskScore >= 6) {
-        recommendation = "DON'T BUY";
-        recommendationIcon = "❌";
-        recommendationColor = Colors.red;
-      } else if (riskScore >= 4) {
-        recommendation = "THINK TWICE";
-        recommendationIcon = "⚠️";
-        recommendationColor = Colors.orange;
-      } else if (riskScore >= 2) {
-        recommendation = "BE CAREFUL";
-        recommendationIcon = "⚠️";
-        recommendationColor = Colors.orange;
-      } else {
-        recommendation = "GO AHEAD";
-        recommendationIcon = "✅";
-        recommendationColor = const Color(0xFF4CAF50);
-      }
-    }
-
-    return AnalysisData(
-      recommendation: recommendation,
-      recommendationIcon: recommendationIcon,
-      recommendationColor: recommendationColor,
-      currentBalance: availableBalance,
-      balanceAfterPurchase: availableBalance - amount,
-      purchaseAmount: amount,
-      dailyAverage: dailyAverage,
-      projectedMonthly: projectedMonthly,
-      afterPurchaseProjected: afterPurchaseProjected,
-      categorySpending: categorySpending,
-      categoryPercentage: categoryPercentage.toDouble(),
-      averageCategorySpending: averageCategorySpending,
-      projectedCategoryMonthly: projectedCategoryMonthly,
-      riskFactors: riskFactors,
-      hasBudget: budgets.isNotEmpty,
-      budgetUsed: budgets.isNotEmpty ? categorySpending / budgets.first.effectiveAmount : null,
-      budgetAfterPurchase: budgets.isNotEmpty ? (categorySpending + amount) / budgets.first.effectiveAmount : null,
-      budgetAmount: budgets.isNotEmpty ? budgets.first.effectiveAmount : null,
-    );
-  }
-
-  Widget _buildAnalysisResult(BuildContext context) {
-    if (_analysisData == null) return const SizedBox.shrink();
-    
-    final data = _analysisData!;
-    
-    return Column(
-      children: [
-        // Recommendation Card
-        Card(
-          elevation: 8,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                colors: [
-                  data.recommendationColor.withOpacity(0.1),
-                  data.recommendationColor.withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  // Recommendation Icon and Text
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        data.recommendationIcon,
-                        style: const TextStyle(fontSize: 48),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data.recommendation,
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: data.recommendationColor,
-                              ),
-                            ),
-                            Text(
-                              _getRecommendationSubtitle(data.recommendation),
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  if (data.riskFactors.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withOpacity(0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.warning, color: Colors.red[700], size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Risk Factors',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ...data.riskFactors.map((factor) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                const SizedBox(width: 20),
-                                const Text('• '),
-                                Expanded(child: Text(factor)),
-                              ],
-                            ),
-                          )),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Balance Impact Card
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.account_balance_wallet, color: Theme.of(context).primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Balance Impact',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildBalanceCard(
-                        'Current Balance',
-                        data.currentBalance,
-                        Icons.account_balance,
-                        Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildBalanceCard(
-                        'After Purchase',
-                        data.balanceAfterPurchase,
-                        Icons.shopping_cart,
-                        data.balanceAfterPurchase < 0 ? Colors.red : const Color(0xFF4CAF50),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100]!,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Purchase Amount:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700]!,
-                        ),
-                      ),
-                      Text(
-                        '\$${NumberFormat('#,##0.00').format(data.purchaseAmount)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Spending Analysis Card
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.trending_up, color: Theme.of(context).primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Spending Analysis',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildSpendingChart(data),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        'Daily Average',
-                        data.dailyAverage,
-                        Icons.today,
-                        Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        'Monthly Projection',
-                        data.projectedMonthly,
-                        Icons.calendar_month,
-                        Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.purple,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Category Analysis Card
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.category, color: Theme.of(context).primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Category Analysis',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        'This Month',
-                        data.categorySpending,
-                        Icons.calendar_month,
-                        Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        'Daily Average',
-                        data.averageCategorySpending,
-                        Icons.today,
-                        Colors.teal,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100]!,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Category % of Total:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700]!,
-                        ),
-                      ),
-                      Text(
-                        '${data.categoryPercentage.toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        if (data.hasBudget) ...[
-          const SizedBox(height: 16),
-          
-          // Budget Analysis Card
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.pie_chart, color: Theme.of(context).primaryColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Budget Analysis',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildBudgetProgress(data),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  String _getRecommendationSubtitle(String recommendation) {
-    switch (recommendation) {
-      case "DON'T BUY":
-        return "High financial risk";
-      case "THINK TWICE":
-        return "Moderate financial risk";
-      case "BE CAREFUL":
-        return "Some financial concerns";
-      case "GO AHEAD":
-        return "Good financial decision";
-      default:
-        return "Analysis complete";
-    }
-  }
-
-  Widget _buildBalanceCard(String title, double amount, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '\$${NumberFormat('#,##0.00').format(amount)}',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetricCard(String title, double value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '\$${NumberFormat('#,##0.00').format(value)}',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpendingChart(AnalysisData data) {
-    // Create a more meaningful chart showing spending trends
-    final currentSpending = data.dailyAverage * 30; // Current monthly projection
-    final afterPurchaseSpending = data.afterPurchaseProjected;
-    
-    // Create spots for the last 7 days and projected next 7 days
-    List<FlSpot> spots = [];
-    List<String> xLabels = [];
-    
-    // Add historical data (simulated based on daily average)
-    for (int i = 0; i < 7; i++) {
-      spots.add(FlSpot(i.toDouble(), data.dailyAverage));
-      xLabels.add('Day ${i + 1}');
-    }
-    
-    // Add projected data after purchase
-    for (int i = 7; i < 14; i++) {
-      final projectedDaily = afterPurchaseSpending / 30;
-      spots.add(FlSpot(i.toDouble(), projectedDaily));
-      xLabels.add('Day ${i + 1}');
-    }
-    
-    final gridColor = Colors.grey[300]!;
-    final textColor = Colors.grey[600]!;
-    final backgroundColor = Colors.grey[50]!;
-    final borderColor = Colors.grey[300]!;
-    
-    return Container(
-      height: 250,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          // Chart title
-          Text(
-            'Daily Spending Trend (Before vs After Purchase)',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Chart
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  horizontalInterval: 1,
-                  verticalInterval: 1,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: gridColor,
-                      strokeWidth: 1,
-                    );
-                  },
-                  getDrawingVerticalLine: (value) {
-                    return FlLine(
-                      color: gridColor,
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      interval: 1,
-                      getTitlesWidget: (double value, TitleMeta meta) {
-                        final style = TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        );
-                        Widget text;
-                        if (value.toInt() == 0) {
-                          text = Text('Day 1', style: style);
-                        } else if (value.toInt() == 6) {
-                          text = Text('Day 7', style: style);
-                        } else if (value.toInt() == 7) {
-                          text = Text('Day 8', style: style);
-                        } else if (value.toInt() == 13) {
-                          text = Text('Day 14', style: style);
-                        } else {
-                          text = Text('', style: style);
-                        }
-                        return SideTitleWidget(
-                          axisSide: meta.axisSide,
-                          child: text,
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      reservedSize: 40,
-                      getTitlesWidget: (double value, TitleMeta meta) {
-                        final style = TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        );
-                        return Text('\$${value.toStringAsFixed(0)}', style: style);
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border.all(color: borderColor),
-                ),
-                lineBarsData: [
-                  // Historical spending line
-                  LineChartBarData(
-                    spots: spots.take(7).toList(),
-                    isCurved: true,
-                    color: Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.blue,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(show: false),
-                  ),
-                  // Projected spending line
-                  LineChartBarData(
-                    spots: spots.skip(7).toList(),
-                    isCurved: true,
-                    color: data.recommendationColor,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(show: false),
-                  ),
-                  // Vertical line to separate historical from projected
-                  LineChartBarData(
-                    spots: [
-                      FlSpot(6.5, 0),
-                      FlSpot(6.5, (data.dailyAverage * 1.5)),
-                    ],
-                    isCurved: false,
-                    color: Colors.grey[400]!,
-                    barWidth: 2,
-                    dotData: FlDotData(show: false),
-                    belowBarData: BarAreaData(show: false),
-                  ),
-                ],
-                minY: 0,
-                maxY: data.dailyAverage * 1.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildLegendItem('Historical', Theme.of(context).brightness == Brightness.dark ? Colors.orange : Colors.blue),
-              const SizedBox(width: 20),
-              _buildLegendItem('Projected', data.recommendationColor),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600]!,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBudgetProgress(AnalysisData data) {
-    if (data.budgetUsed == null || data.budgetAfterPurchase == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Budget Usage',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700]!,
-              ),
-            ),
-            Text(
-              '${(data.budgetUsed! * 100).toStringAsFixed(1)}% → ${(data.budgetAfterPurchase! * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        LinearProgressIndicator(
-          value: data.budgetUsed!,
-          backgroundColor: Colors.grey[300]!,
-          valueColor: AlwaysStoppedAnimation<Color>(
-            data.budgetUsed! > 1.0 ? Colors.red : 
-            data.budgetUsed! > 0.8 ? Colors.orange : const Color(0xFF4CAF50),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Budget: \$${NumberFormat('#,##0.00').format(data.budgetAmount!)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600]!,
-              ),
-            ),
-            Text(
-              'After: \$${NumberFormat('#,##0.00').format(data.categorySpending + data.purchaseAmount)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600]!,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Should I Buy It?'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Purchase Analysis',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount',
-                          prefixText: '\$',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter an amount';
-                          }
-                          final amount = double.tryParse(value);
-                          if (amount == null || amount <= 0) {
-                            return 'Please enter a valid amount';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _categories.map((category) {
-                          return DropdownMenuItem(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value!;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description (Optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isAnalyzing ? null : _analyzePurchase,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: _isAnalyzing
-                              ? const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text('Analyzing...'),
-                                  ],
-                                )
-                              : const Text(
-                                  'Analyze Purchase',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_analysisResult != null) ...[
-                const SizedBox(height: 16),
-                _buildAnalysisResult(context),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

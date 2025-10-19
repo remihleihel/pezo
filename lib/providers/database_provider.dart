@@ -7,7 +7,7 @@ import '../models/budget.dart';
 class DatabaseProvider extends ChangeNotifier {
   static Database? _database;
   static String _currentDatabaseName = 'wis_default.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -107,6 +107,20 @@ class DatabaseProvider extends ChangeNotifier {
       )
     ''');
     print('DatabaseProvider: Created spending_goals table');
+
+    await db.execute('''
+      CREATE TABLE savings_goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL NOT NULL DEFAULT 0,
+        target_date TEXT,
+        is_achieved INTEGER NOT NULL DEFAULT 0,
+        created_date TEXT NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    print('DatabaseProvider: Created savings_goals table');
     print('DatabaseProvider: All tables created successfully');
   }
 
@@ -129,6 +143,27 @@ class DatabaseProvider extends ChangeNotifier {
       } catch (e) {
         print('DatabaseProvider: Error adding carried_over_amount column: $e');
         // Column might already exist, continue
+      }
+    }
+    
+    if (oldVersion < 3) {
+      // Add savings_goals table
+      try {
+        await db.execute('''
+          CREATE TABLE savings_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL NOT NULL DEFAULT 0,
+            target_date TEXT,
+            is_achieved INTEGER NOT NULL DEFAULT 0,
+            created_date TEXT NOT NULL,
+            priority INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+        print('DatabaseProvider: Added savings_goals table');
+      } catch (e) {
+        print('DatabaseProvider: Error adding savings_goals table: $e');
       }
     }
   }
@@ -450,6 +485,58 @@ class DatabaseProvider extends ChangeNotifier {
     final db = await database;
     final result = await db.delete(
       'spending_goals',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    notifyListeners();
+    return result;
+  }
+
+  // Savings Goals CRUD operations
+  Future<int> insertSavingsGoal(SavingsGoal goal) async {
+    try {
+      print('DatabaseProvider: Inserting savings goal ${goal.title} - \$${goal.targetAmount}');
+      final db = await database;
+      final result = await db.insert('savings_goals', goal.toJson());
+      print('DatabaseProvider: Savings goal inserted with ID: $result');
+      notifyListeners();
+      return result;
+    } catch (e) {
+      print('DatabaseProvider: Error inserting savings goal: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<SavingsGoal>> getAllSavingsGoals() async {
+    print('DatabaseProvider: Getting all savings goals...');
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'savings_goals',
+      orderBy: 'priority ASC, created_date DESC',
+    );
+    print('DatabaseProvider: Found ${maps.length} savings goals in database');
+
+    return List.generate(maps.length, (i) {
+      return SavingsGoal.fromJson(maps[i]);
+    });
+  }
+
+  Future<int> updateSavingsGoal(SavingsGoal goal) async {
+    final db = await database;
+    final result = await db.update(
+      'savings_goals',
+      goal.toJson(),
+      where: 'id = ?',
+      whereArgs: [goal.id],
+    );
+    notifyListeners();
+    return result;
+  }
+
+  Future<int> deleteSavingsGoal(int id) async {
+    final db = await database;
+    final result = await db.delete(
+      'savings_goals',
       where: 'id = ?',
       whereArgs: [id],
     );

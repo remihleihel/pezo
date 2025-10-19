@@ -7,6 +7,7 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/spending_goal_card.dart';
+import '../widgets/savings_goal_card.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -33,7 +34,7 @@ class _BudgetScreenState extends State<BudgetScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _updateDateRange();
   }
 
@@ -84,6 +85,7 @@ class _BudgetScreenState extends State<BudgetScreen> with TickerProviderStateMix
           controller: _tabController,
           tabs: const [
             Tab(text: 'Budgets'),
+            Tab(text: 'Savings Goals'),
             Tab(text: 'Spending Goals'),
           ],
         ),
@@ -96,6 +98,7 @@ class _BudgetScreenState extends State<BudgetScreen> with TickerProviderStateMix
             endDate: _customEndDate,
             period: _selectedPeriod,
           ),
+          const SavingsGoalsTab(),
           const SpendingGoalsTab(),
         ],
       ),
@@ -109,6 +112,8 @@ class _BudgetScreenState extends State<BudgetScreen> with TickerProviderStateMix
   void _showAddDialog() {
     if (_tabController.index == 0) {
       _showAddMonthlyBudgetDialog();
+    } else if (_tabController.index == 1) {
+      _showAddSavingsGoalDialog();
     } else {
       _showAddSpendingGoalDialog();
     }
@@ -126,6 +131,18 @@ class _BudgetScreenState extends State<BudgetScreen> with TickerProviderStateMix
             _selectedPeriod = 'This Month';
             _updateDateRange();
           });
+        },
+      ),
+    );
+  }
+
+  void _showAddSavingsGoalDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddSavingsGoalDialog(
+        onGoalAdded: () {
+          // Refresh goals after adding
+          Provider.of<BudgetProvider>(context, listen: false).loadSavingsGoals();
         },
       ),
     );
@@ -414,6 +431,89 @@ class SpendingGoalsTab extends StatelessWidget {
                   .deleteSpendingGoal(goal.id!);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Goal deleted successfully!')),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SavingsGoalsTab extends StatelessWidget {
+  const SavingsGoalsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<BudgetProvider>(
+      builder: (context, budgetProvider, child) {
+        // Get savings goals from database
+        final goals = budgetProvider.savingsGoals;
+
+        if (goals.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.savings, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No savings goals set',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Tap + to add a savings goal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: goals.length,
+          itemBuilder: (context, index) {
+            final goal = goals[index];
+            return SavingsGoalCard(
+              goal: goal,
+              onEdit: () => _editSavingsGoal(context, goal),
+              onDelete: () => _deleteSavingsGoal(context, goal),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _editSavingsGoal(BuildContext context, SavingsGoal goal) {
+    showDialog(
+      context: context,
+      builder: (context) => EditSavingsGoalDialog(goal: goal),
+    );
+  }
+
+  void _deleteSavingsGoal(BuildContext context, SavingsGoal goal) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Savings Goal'),
+        content: const Text('Are you sure you want to delete this savings goal?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Provider.of<BudgetProvider>(context, listen: false)
+                  .deleteSavingsGoal(goal.id!);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Savings goal deleted successfully!')),
               );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -880,6 +980,277 @@ class _EditSpendingGoalDialogState extends State<EditSpendingGoalDialog> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Goal updated successfully!')),
+      );
+    }
+  }
+}
+
+class AddSavingsGoalDialog extends StatefulWidget {
+  final VoidCallback? onGoalAdded;
+  
+  const AddSavingsGoalDialog({super.key, this.onGoalAdded});
+
+  @override
+  State<AddSavingsGoalDialog> createState() => _AddSavingsGoalDialogState();
+}
+
+class _AddSavingsGoalDialogState extends State<AddSavingsGoalDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _amountController = TextEditingController();
+  DateTime? _targetDate;
+  int _priority = 1;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Savings Goal'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Goal Title'),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a title';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _amountController,
+              decoration: const InputDecoration(
+                labelText: 'Target Amount',
+                prefixText: '\$',
+              ),
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter an amount';
+                }
+                if (double.tryParse(value) == null) {
+                  return 'Please enter a valid number';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              value: _priority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('High Priority')),
+                DropdownMenuItem(value: 2, child: Text('Medium Priority')),
+                DropdownMenuItem(value: 3, child: Text('Low Priority')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _priority = value!;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              title: Text(_targetDate == null 
+                  ? 'Select Target Date (Optional)'
+                  : 'Target Date: ${DateFormat('MMM dd, yyyy').format(_targetDate!)}'),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now().add(const Duration(days: 30)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (date != null) {
+                  setState(() => _targetDate = date);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saveGoal,
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  void _saveGoal() {
+    if (_formKey.currentState!.validate()) {
+      final title = _titleController.text;
+      final amount = double.parse(_amountController.text);
+      
+      final goal = SavingsGoal(
+        title: title,
+        targetAmount: amount,
+        targetDate: _targetDate,
+        createdDate: DateTime.now(),
+        priority: _priority,
+      );
+      
+      Provider.of<BudgetProvider>(context, listen: false).addSavingsGoal(goal);
+      widget.onGoalAdded?.call();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Savings goal added successfully!')),
+      );
+    }
+  }
+}
+
+class EditSavingsGoalDialog extends StatefulWidget {
+  final SavingsGoal goal;
+  
+  const EditSavingsGoalDialog({super.key, required this.goal});
+
+  @override
+  State<EditSavingsGoalDialog> createState() => _EditSavingsGoalDialogState();
+}
+
+class _EditSavingsGoalDialogState extends State<EditSavingsGoalDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _titleController;
+  late TextEditingController _amountController;
+  late DateTime? _targetDate;
+  late int _priority;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.goal.title);
+    _amountController = TextEditingController(text: widget.goal.targetAmount.toString());
+    _targetDate = widget.goal.targetDate;
+    _priority = widget.goal.priority;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Savings Goal'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Goal Title'),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a title';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _amountController,
+              decoration: const InputDecoration(
+                labelText: 'Target Amount',
+                prefixText: '\$',
+              ),
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter an amount';
+                }
+                if (double.tryParse(value) == null) {
+                  return 'Please enter a valid number';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              value: _priority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('High Priority')),
+                DropdownMenuItem(value: 2, child: Text('Medium Priority')),
+                DropdownMenuItem(value: 3, child: Text('Low Priority')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _priority = value!;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              title: Text(_targetDate == null 
+                  ? 'Select Target Date (Optional)'
+                  : 'Target Date: ${DateFormat('MMM dd, yyyy').format(_targetDate!)}'),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _targetDate ?? DateTime.now().add(const Duration(days: 30)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (date != null) {
+                  setState(() => _targetDate = date);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saveGoal,
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  void _saveGoal() {
+    if (_formKey.currentState!.validate()) {
+      final title = _titleController.text;
+      final amount = double.parse(_amountController.text);
+      
+      final updatedGoal = widget.goal.copyWith(
+        title: title,
+        targetAmount: amount,
+        targetDate: _targetDate,
+        priority: _priority,
+      );
+      
+      Provider.of<BudgetProvider>(context, listen: false).updateSavingsGoal(updatedGoal);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Savings goal updated successfully!')),
       );
     }
   }

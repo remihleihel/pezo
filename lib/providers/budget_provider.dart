@@ -6,16 +6,19 @@ class BudgetProvider with ChangeNotifier {
   final DatabaseProvider _databaseProvider;
   List<Budget> _budgets = [];
   List<SpendingGoal> _spendingGoals = [];
+  List<SavingsGoal> _savingsGoals = [];
   bool _isLoading = false;
   String? _error;
 
   BudgetProvider(this._databaseProvider) {
     loadBudgets();
     loadSpendingGoals();
+    loadSavingsGoals();
   }
 
   List<Budget> get budgets => _budgets;
   List<SpendingGoal> get spendingGoals => _spendingGoals;
+  List<SavingsGoal> get savingsGoals => _savingsGoals;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -155,6 +158,102 @@ class BudgetProvider with ChangeNotifier {
   double getTotalBudgetForMonth(String month, int year) {
     return getBudgetsForMonth(month, year)
         .fold(0.0, (sum, budget) => sum + budget.amount);
+  }
+
+  // Savings Goals methods
+  Future<void> loadSavingsGoals() async {
+    print('BudgetProvider: Loading savings goals...');
+    try {
+      _savingsGoals = await _databaseProvider.getAllSavingsGoals();
+      print('BudgetProvider: Loaded ${_savingsGoals.length} savings goals');
+    } catch (e) {
+      print('BudgetProvider: Error loading savings goals: $e');
+      _error = 'Failed to load savings goals: $e';
+    }
+    notifyListeners();
+  }
+
+  Future<void> addSavingsGoal(SavingsGoal goal) async {
+    try {
+      print('BudgetProvider: Adding savings goal: ${goal.title} - \$${goal.targetAmount}');
+      final id = await _databaseProvider.insertSavingsGoal(goal);
+      final newGoal = goal.copyWith(id: id);
+      _savingsGoals.add(newGoal);
+      notifyListeners();
+    } catch (e) {
+      print('BudgetProvider: Error adding savings goal: $e');
+      _error = 'Failed to add savings goal: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateSavingsGoal(SavingsGoal goal) async {
+    try {
+      await _databaseProvider.updateSavingsGoal(goal);
+      final index = _savingsGoals.indexWhere((g) => g.id == goal.id);
+      if (index != -1) {
+        _savingsGoals[index] = goal;
+        notifyListeners();
+      }
+    } catch (e) {
+      print('BudgetProvider: Error updating savings goal: $e');
+      _error = 'Failed to update savings goal: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteSavingsGoal(int id) async {
+    try {
+      await _databaseProvider.deleteSavingsGoal(id);
+      _savingsGoals.removeWhere((g) => g.id == id);
+      notifyListeners();
+    } catch (e) {
+      print('BudgetProvider: Error deleting savings goal: $e');
+      _error = 'Failed to delete savings goal: $e';
+      notifyListeners();
+    }
+  }
+
+  // Update savings goals progress based on current balance
+  Future<void> updateSavingsGoalsProgress(double currentBalance) async {
+    if (_savingsGoals.isEmpty) return;
+
+    // Sort by priority (1 = highest priority)
+    final sortedGoals = List<SavingsGoal>.from(_savingsGoals)
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+
+    double remainingBalance = currentBalance;
+    bool hasChanges = false;
+
+    for (final goal in sortedGoals) {
+      if (goal.isAchieved) continue;
+
+      double newCurrentAmount;
+      if (remainingBalance >= goal.targetAmount) {
+        // Goal can be fully funded
+        newCurrentAmount = goal.targetAmount;
+        remainingBalance -= goal.targetAmount;
+      } else {
+        // Partial funding
+        newCurrentAmount = remainingBalance;
+        remainingBalance = 0;
+      }
+
+      if (newCurrentAmount != goal.currentAmount) {
+        final updatedGoal = goal.copyWith(
+          currentAmount: newCurrentAmount,
+          isAchieved: newCurrentAmount >= goal.targetAmount,
+        );
+        await updateSavingsGoal(updatedGoal);
+        hasChanges = true;
+      }
+
+      if (remainingBalance <= 0) break;
+    }
+
+    if (hasChanges) {
+      print('BudgetProvider: Updated savings goals progress based on balance: \$${currentBalance}');
+    }
   }
 
   void clearError() {

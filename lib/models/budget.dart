@@ -144,3 +144,80 @@ class SpendingGoal {
     );
   }
 }
+
+// Savings Goals - for tracking savings progress automatically
+class SavingsGoal {
+  final int? id;
+  final String title;
+  final double targetAmount;
+  final double currentAmount;
+  final DateTime? targetDate;
+  final bool isAchieved;
+  final DateTime createdDate;
+  final int priority; // 1 = highest priority, 2 = medium, 3 = low
+
+  SavingsGoal({
+    this.id,
+    required this.title,
+    required this.targetAmount,
+    this.currentAmount = 0.0,
+    this.targetDate,
+    this.isAchieved = false,
+    required this.createdDate,
+    this.priority = 1,
+  });
+
+  factory SavingsGoal.fromJson(Map<String, dynamic> json) {
+    return SavingsGoal(
+      id: json['id'] as int?,
+      title: json['title'] as String,
+      targetAmount: (json['target_amount'] as num).toDouble(),
+      currentAmount: (json['current_amount'] as num?)?.toDouble() ?? 0.0,
+      targetDate: json['target_date'] == null ? null : DateTime.parse(json['target_date'] as String),
+      isAchieved: (json['is_achieved'] as int? ?? 0) == 1,
+      createdDate: DateTime.parse(json['created_date'] as String),
+      priority: json['priority'] as int? ?? 1,
+    );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'target_amount': targetAmount,
+      'current_amount': currentAmount,
+      'target_date': targetDate?.toIso8601String(),
+      'is_achieved': isAchieved ? 1 : 0,
+      'created_date': createdDate.toIso8601String(),
+      'priority': priority,
+    };
+  }
+
+  double get progressPercentage => targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0.0;
+  
+  bool get isOverdue => targetDate != null && 
+      DateTime.now().isAfter(targetDate!) && 
+      !isAchieved;
+
+  SavingsGoal copyWith({
+    int? id,
+    String? title,
+    double? targetAmount,
+    double? currentAmount,
+    DateTime? targetDate,
+    bool? isAchieved,
+    DateTime? createdDate,
+    int? priority,
+  }) {
+    return SavingsGoal(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      targetAmount: targetAmount ?? this.targetAmount,
+      currentAmount: currentAmount ?? this.currentAmount,
+      targetDate: targetDate ?? this.targetDate,
+      isAchieved: isAchieved ?? this.isAchieved,
+      createdDate: createdDate ?? this.createdDate,
+      priority: priority ?? this.priority,
+    );
+  }
+}
