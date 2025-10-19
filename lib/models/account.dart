@@ -81,3 +81,4 @@ class Account {
   @override
   int get hashCode => id.hashCode;
 }
+
