@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>WIS</string>
+	<string>Pezo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>wis</string>
+	<string>pezo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,12 +45,22 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	
-	<!-- Camera permissions -->
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to camera to scan receipts and automatically extract transaction information.</string>
+	<string>We need camera access to scan your receipts.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to photo library to select receipt images for processing.</string>
+	<string>We need access to your photos to attach receipts.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need permission to save processed receipt images.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is optional, used only if needed for voice input.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access helps associate expenses with stores.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This is used only to improve analytics and user experience.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>
-

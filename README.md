@@ -1,4 +1,4 @@
-# WIS - What I Spent 📱💰
+# Pezo 📱💰
 
 A comprehensive Flutter app for tracking your spending with intelligent receipt scanning capabilities. Keep track of your income and expenses, scan receipts automatically, and get insights into your spending patterns.
 
@@ -43,7 +43,7 @@ A comprehensive Flutter app for tracking your spending with intelligent receipt 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd wis
+   cd pezo
    ```
 
 2. **Install dependencies**

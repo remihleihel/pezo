@@ -1,0 +1,119 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '14.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      # Simulator stability - exclude Intel architecture for Apple Silicon simulators
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386 x86_64'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+
+      # ✅ Make gRPC/Abseil happy - Force C++17 for all targets
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+      config.build_settings['GCC_C_LANGUAGE_STANDARD'] = 'gnu11'
+      config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+      
+      # ✅ Special handling for gRPC-Core to force C++17
+      if target.name == 'gRPC-Core'
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = ['-std=gnu++17']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'GRPC_BAZEL_BUILD=1'
+      end
+      
+      # ✅ Fix for gRPC-C++ template issues
+      if target.name == 'gRPC-C++'
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = ['-std=gnu++17', '-Wno-error=unused-command-line-argument']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'GRPC_BAZEL_BUILD=1'
+        config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+      end
+      
+      # ✅ Additional fix for gRPC template compilation issues
+      if target.name.include?('gRPC') || target.name.include?('abseil')
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = ['-std=gnu++17', '-Wno-error=unused-command-line-argument', '-Wno-comma', '-Wno-error=unused-variable', '-Wno-error=unused-function']
+        config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+        config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+        config.build_settings['CLANG_WARN_DOCUMENTATION_COMMENTS'] = 'NO'
+        config.build_settings['CLANG_WARN_STRICT_PROTOTYPES'] = 'NO'
+        config.build_settings['GCC_WARN_64_TO_32_BIT_CONVERSION'] = 'NO'
+        config.build_settings['GCC_WARN_ABOUT_RETURN_TYPE'] = 'NO'
+        config.build_settings['GCC_WARN_UNINITIALIZED_AUTOS'] = 'NO'
+        config.build_settings['GCC_WARN_UNUSED_FUNCTION'] = 'NO'
+        config.build_settings['GCC_WARN_UNUSED_VARIABLE'] = 'NO'
+      end
+
+      # If you kept this to silence odd flags on sim, keep it (harmless on device)
+      config.build_settings['OTHER_CFLAGS'] = ['-Qunused-arguments']
+      
+      # Fix for Firebase modular header issues
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+      config.build_settings['CLANG_WARN_DOCUMENTATION_COMMENTS'] = 'NO'
+      config.build_settings['CLANG_WARN_STRICT_PROTOTYPES'] = 'NO'
+      
+      # Additional Firebase header fixes - only for specific problematic plugins
+      if target.name.include?('firebase_messaging') || target.name.include?('firebase_storage') || target.name.include?('firebase_auth')
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+        config.build_settings['DEFINES_MODULE'] = 'NO'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+        config.build_settings['CLANG_MODULES_AUTOLINK'] = 'NO'
+      end
+    end
+  end
+  
+  # ✅ Patch gRPC template compilation issue
+  gRPC_files = [
+    'gRPC-Core/src/core/lib/promise/detail/basic_seq.h',
+    'gRPC-C++/src/core/lib/promise/detail/basic_seq.h'
+  ]
+  
+  gRPC_files.each do |file_path|
+    gRPC_file = File.join(installer.sandbox.root, file_path)
+    if File.exist?(gRPC_file)
+      content = File.read(gRPC_file)
+      # Fix the template syntax issue on line 103 - replace template keyword usage
+      content.gsub!(/Traits::template CallSeqFactory/, 'Traits::CallSeqFactory')
+      File.write(gRPC_file, content)
+      puts "✅ Patched #{file_path} template compilation issue"
+    end
+  end
+end
