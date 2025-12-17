@@ -1,0 +1,13 @@
+name = "pezo-ai-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = []
+
+# KV namespace for rate limiting
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "5a426942e68346fdb4130bf02ff984bd"
+
+# Secrets (set via: wrangler secret put OPENAI_API_KEY)
+# OPENAI_API_KEY is stored as a secret
+

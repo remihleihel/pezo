@@ -5,6 +5,7 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
+import '../services/ai_should_i_buy_service.dart';
 
 // Sophisticated financial analysis classes
 class UserFinance {
@@ -62,6 +63,16 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
   String? _analysisResult;
   bool _isAnalyzing = false;
   AnalysisData? _analysisData;
+  AiDecision? _aiDecision;
+  bool _aiUnavailable = false;
+  bool _isLoadingAi = false;
+  
+  // AI analysis mode: 'auto', 'always', 'never'
+  String _aiMode = 'auto';
+  
+  // AI service - configure with your worker URL
+  static const String _workerBaseUrl = 'https://pezo-ai-worker.remihleihel.workers.dev';
+  late final AiShouldIBuyService _aiService = AiShouldIBuyService(workerBaseUrl: _workerBaseUrl);
   
   // Category weights for financial wisdom analysis
   static const Map<String, double> _categoryWeights = {
@@ -127,7 +138,12 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
       return;
     }
 
+    // Show AI mode selection dialog
+    final aiModeChoice = await _showAiModeDialog();
+    if (aiModeChoice == null) return; // User cancelled
+    
     setState(() {
+      _aiMode = aiModeChoice;
       _isAnalyzing = true;
       _analysisResult = null;
       _analysisData = null;
@@ -164,12 +180,213 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
         _analysisResult = advice.decision;
         _analysisData = analysisData;
         _isAnalyzing = false;
+        _aiDecision = null;
+        _aiUnavailable = false;
       });
+
+      // Call AI service based on user's choice
+      final shouldCallAi = _shouldCallAi(advice.score);
+      if (shouldCallAi) {
+        _fetchAiDecision(
+          amount: amount,
+          category: _selectedCategory,
+          description: _descriptionController.text,
+          financialData: financialData,
+        );
+      }
     } catch (e) {
       setState(() {
         _isAnalyzing = false;
         _analysisResult = 'Error analyzing purchase: $e';
       });
+    }
+  }
+
+  /// Show dialog to select AI analysis mode
+  Future<String?> _showAiModeDialog() async {
+    String selectedMode = _aiMode; // Track selected mode in dialog
+    
+    return showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('Analysis Mode'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('How would you like to analyze this purchase?'),
+                    const SizedBox(height: 16),
+                    RadioListTile<String>(
+                      title: const Text('Auto'),
+                      subtitle: const Text('Use AI for borderline cases (recommended)'),
+                      value: 'auto',
+                      groupValue: selectedMode,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedMode = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Use AI for analysis'),
+                      subtitle: const Text('Always get AI insights'),
+                      value: 'always',
+                      groupValue: selectedMode,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedMode = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Rely on offline calculations'),
+                      subtitle: const Text('Use only local app calculations'),
+                      value: 'never',
+                      groupValue: selectedMode,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedMode = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, size: 20, color: Colors.orange[700]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Note: AI analysis is limited to 3 requests per day. After the limit, the app will use offline calculations only.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Cancel - return null
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(selectedMode); // Submit - return selected mode
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Determine if AI should be called based on mode and score
+  bool _shouldCallAi(double score) {
+    if (_workerBaseUrl.isEmpty) return false;
+    
+    switch (_aiMode) {
+      case 'always':
+        return true; // Always call AI
+      case 'never':
+        return false; // Never call AI
+      case 'auto':
+      default:
+        // Auto: Only for borderline cases (score 40-80)
+        return score >= 40 && score <= 80;
+    }
+  }
+
+  /// Fetch AI decision in background
+  Future<void> _fetchAiDecision({
+    required double amount,
+    required String category,
+    required String description,
+    required Map<String, dynamic> financialData,
+  }) async {
+    if (_isLoadingAi) return;
+
+    setState(() {
+      _isLoadingAi = true;
+      _aiUnavailable = false;
+    });
+
+    try {
+      // Calculate last 30 day spend
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+      final last30DayTransactions = transactionProvider.transactions
+          .where((t) => t.date.isAfter(thirtyDaysAgo) && t.type == TransactionType.expense)
+          .toList();
+      final last30DaySpend = last30DayTransactions.fold(0.0, (sum, t) => sum + t.amount);
+
+      // Build financial snapshot
+      final snapshot = FinancialSnapshot(
+        balance: financialData['currentBalance'] as double,
+        monthlyIncome: financialData['avgMonthlyIncome'] as double,
+        avgDailySpending: financialData['avgDailySpending'] as double,
+        recurringExpenses: financialData['recurringExpenses'] as double,
+        daysLeftInMonth: financialData['daysLeftInMonth'] as int,
+        savingsGoal: financialData['savingsGoal'] as double?,
+        last30DaySpend: last30DaySpend,
+        avgMonthlySpend: (financialData['avgDailySpending'] as double) * 30,
+        categoryTotals: (financialData['categorySpending'] as Map<String, double>) ?? <String, double>{},
+      );
+
+      // Build payload
+      final payload = ShouldIBuyPayload(
+        item: description.isNotEmpty ? description : 'Purchase',
+        price: amount,
+        currency: 'USD', // TODO: Make this configurable if needed
+        category: category,
+        isRecurring: _isRecurring,
+        frequency: _isRecurring ? _recurringFrequency : null,
+        snapshot: snapshot,
+      );
+
+      // Get AI decision
+      print('Fetching AI decision...');
+      final aiDecision = await _aiService.getAiDecision(payload);
+      print('AI decision received: ${aiDecision != null ? "SUCCESS" : "NULL"}');
+
+      if (mounted) {
+        setState(() {
+          _aiDecision = aiDecision;
+          _aiUnavailable = aiDecision == null;
+          _isLoadingAi = false;
+        });
+      }
+    } catch (e) {
+      print('Error in _fetchAiDecision: $e');
+      if (mounted) {
+        setState(() {
+          _aiDecision = null;
+          _aiUnavailable = true;
+          _isLoadingAi = false;
+        });
+      }
     }
   }
 
@@ -215,12 +432,32 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
     final expectedBalanceAfterPurchase =
         user.balance - projectedCostThisMonth - projectedRemainingExpenses;
 
-    // Step 4: Safe spending threshold (30% of income)
-    final safeThreshold = user.monthlyIncome * 0.3;
-
+    // Step 4: Safe spending threshold (30% of income, minimum $100)
+    final safeThreshold = (user.monthlyIncome * 0.3).clamp(100.0, double.infinity);
+    
     // Step 5: Affordability score (0–100)
-    double affordability = ((expectedBalanceAfterPurchase / safeThreshold) * 50) +
-        (weight * 50);
+    // For very small purchases (< $5), always give high score if balance is positive
+    double affordability;
+    if (amount < 5.0 && immediateBalanceAfterPurchase > 0) {
+      // Small purchases are almost always fine if you have positive balance
+      affordability = 80.0 + (weight * 10); // 80-90 for small purchases
+    } else if (safeThreshold <= 0 || user.monthlyIncome <= 0) {
+      // No income data - base decision on balance only
+      if (immediateBalanceAfterPurchase > 0) {
+        affordability = 60.0 + (weight * 20); // 60-80 if positive balance
+      } else {
+        affordability = 20.0; // Low score if negative balance
+      }
+    } else {
+      // Normal calculation
+      final balanceRatio = expectedBalanceAfterPurchase / safeThreshold;
+      affordability = (balanceRatio * 50) + (weight * 50);
+      
+      // Boost score if purchase is very small relative to balance
+      if (amount < user.balance * 0.01) { // Less than 1% of balance
+        affordability += 15;
+      }
+    }
     
     // Apply savings goal penalty if applicable
     if (user.savingsGoal != null && immediateBalanceAfterPurchase < user.savingsGoal!) {
@@ -574,6 +811,100 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                     color: Colors.grey[600],
                   ),
                 ),
+                // AI decision badge
+                if (_aiDecision != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.auto_awesome, size: 16, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'AI Insight',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[700],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[700],
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      '${_aiDecision!.confidence}%',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_aiDecision!.suggestion.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _aiDecision!.suggestion,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_aiDecision!.reasoning.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ..._aiDecision!.reasoning.map((reason) => Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('• ', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                          Expanded(
+                            child: Text(
+                              reason,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                  ],
+                ] else if (_aiUnavailable && !_isLoadingAi) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'AI unavailable',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
