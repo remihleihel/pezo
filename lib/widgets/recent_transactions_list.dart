@@ -72,7 +72,9 @@ class RecentTransactionsList extends StatelessWidget {
       ),
       subtitle: Text(
         '${transaction.category} • ${DateFormat('MMM dd').format(transaction.date)}',
-        style: TextStyle(color: Colors.grey[600]),
+        style: TextStyle(
+          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+        ),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

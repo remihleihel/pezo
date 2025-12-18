@@ -235,7 +235,6 @@ class AiShouldIBuyService {
       // Return cached decision
       return AiDecision.fromJson(decoded['decision'] as Map<String, dynamic>);
     } catch (e) {
-      print('Error reading cache: $e');
       return null;
     }
   }
@@ -255,7 +254,7 @@ class AiShouldIBuyService {
       };
       await prefs.setString(cacheKey, jsonEncode(cacheData));
     } catch (e) {
-      print('Error caching decision: $e');
+      // Silently fail caching
     }
   }
 
@@ -263,24 +262,18 @@ class AiShouldIBuyService {
   /// Returns null if service is unavailable or fails
   Future<AiDecision?> getAiDecision(ShouldIBuyPayload payload) async {
     try {
-      print('AI Service: Getting decision for ${payload.item} (${payload.price} ${payload.currency})');
       // Check cache first
       final cacheKey = _generateCacheKey(payload);
       final cached = await _getCachedDecision(cacheKey);
       if (cached != null) {
-        print('AI decision retrieved from cache');
         return cached;
       }
-      
-      print('AI Service: Cache miss, calling worker at $workerBaseUrl');
 
       // Get client ID
       final clientId = await _getClientId();
 
       // Build request
       final url = Uri.parse('$workerBaseUrl/should-i-buy');
-      print('AI Service: POST to $url');
-      print('AI Service: Headers - X-PEZO-APP: pezo_v1, X-CLIENT-ID: $clientId');
       final response = await http
           .post(
             url,
@@ -292,27 +285,21 @@ class AiShouldIBuyService {
             body: jsonEncode(payload.toJson()),
           )
           .timeout(_requestTimeout);
-      
-      print('AI Service: Response status ${response.statusCode}');
 
       // Handle errors
       if (response.statusCode != 200) {
-        print('AI service error: ${response.statusCode} - ${response.body}');
         return null;
       }
 
       // Parse response
       final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-      print('AI Service: Response data: $responseData');
       final decision = AiDecision.fromJson(responseData);
-      print('AI Service: Parsed decision: ${decision.decision}, confidence: ${decision.confidence}');
 
       // Cache the decision
       await _cacheDecision(cacheKey, decision);
 
       return decision;
     } catch (e) {
-      print('Error getting AI decision: $e');
       return null;
     }
   }

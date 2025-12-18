@@ -633,14 +633,14 @@ class TransactionCard extends StatelessWidget {
                 transaction.merchantName!,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey[600],
+                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                 ),
               ),
             Text(
               DateFormat('MMM dd, yyyy').format(transaction.date),
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey[600],
+                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
               ),
             ),
           ],

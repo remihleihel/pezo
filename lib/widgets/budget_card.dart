@@ -56,7 +56,7 @@ class BudgetCard extends StatelessWidget {
                             '${budget.month} ${budget.year}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                             ),
                           ),
                           if (budget.carryoverEnabled && budget.carriedOverAmount != null && budget.carriedOverAmount! > 0) ...[
@@ -126,7 +126,7 @@ class BudgetCard extends StatelessWidget {
                       'Spent',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                       ),
                     ),
                     Text(
@@ -134,7 +134,9 @@ class BudgetCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isOverBudget ? Colors.red : Colors.black,
+                        color: isOverBudget
+                            ? Colors.red
+                            : Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   ],
@@ -146,7 +148,7 @@ class BudgetCard extends StatelessWidget {
                       'Budget',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                       ),
                     ),
                     Column(
@@ -164,7 +166,7 @@ class BudgetCard extends StatelessWidget {
                             'Base: \$${budget.amount.toStringAsFixed(0)}',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                             ),
                           ),
                       ],
@@ -176,7 +178,9 @@ class BudgetCard extends StatelessWidget {
             const SizedBox(height: 12),
             LinearProgressIndicator(
               value: percentage > 100 ? 1.0 : percentage / 100,
-              backgroundColor: Colors.grey[200],
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[800]
+                  : Colors.grey[200],
               valueColor: AlwaysStoppedAnimation<Color>(progressColor),
             ),
             const SizedBox(height: 8),
@@ -187,7 +191,7 @@ class BudgetCard extends StatelessWidget {
                   '${percentage.toStringAsFixed(1)}% used',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                   ),
                 ),
                 Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../models/transaction.dart';
@@ -70,8 +71,8 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
   // AI analysis mode: 'auto', 'always', 'never'
   String _aiMode = 'auto';
   
-  // AI service - configure with your worker URL
-  static const String _workerBaseUrl = 'https://pezo-ai-worker.remihleihel.workers.dev';
+  // AI service - configure with your worker URL from environment or default
+  String get _workerBaseUrl => dotenv.env['WORKER_URL'] ?? 'https://pezo-ai-worker.remihleihel.workers.dev';
   late final AiShouldIBuyService _aiService = AiShouldIBuyService(workerBaseUrl: _workerBaseUrl);
   
   // Category weights for financial wisdom analysis
@@ -367,9 +368,7 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
       );
 
       // Get AI decision
-      print('Fetching AI decision...');
       final aiDecision = await _aiService.getAiDecision(payload);
-      print('AI decision received: ${aiDecision != null ? "SUCCESS" : "NULL"}');
 
       if (mounted) {
         setState(() {
@@ -379,7 +378,6 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
         });
       }
     } catch (e) {
-      print('Error in _fetchAiDecision: $e');
       if (mounted) {
         setState(() {
           _aiDecision = null;
@@ -808,7 +806,7 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                   _getRecommendationSubtitle(),
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
                   ),
                 ),
                 // AI decision badge
@@ -817,13 +815,25 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.blue.withOpacity(0.2)
+                          : Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                      border: Border.all(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.blue.withOpacity(0.5)
+                            : Colors.blue.withOpacity(0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.auto_awesome, size: 16, color: Colors.blue),
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 16,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.blue[300]
+                              : Colors.blue,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -836,14 +846,18 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.blue[700],
+                                      color: Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.blue[300]
+                                          : Colors.blue[700],
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: Colors.blue[700],
+                                      color: Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.blue[600]
+                                          : Colors.blue[700],
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
@@ -863,7 +877,7 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                                   _aiDecision!.suggestion,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey[700],
+                                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
                                   ),
                                 ),
                               ],
@@ -880,13 +894,13 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('• ', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                          Text('• ', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontSize: 12)),
                           Expanded(
                             child: Text(
                               reason,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey[700],
+                                color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
                               ),
                             ),
                           ),
@@ -900,7 +914,7 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                     'AI unavailable',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey[500],
+                      color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -1064,13 +1078,13 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
+          Icon(icon, size: 16, color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7)),
           const SizedBox(width: 8),
           Text(
             title,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
+              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
             ),
           ),
           const Spacer(),
@@ -1166,7 +1180,9 @@ class _ShouldIBuyScreenState extends State<ShouldIBuyScreen> {
                       
                       // Recurring payment section
                       Card(
-                        color: Colors.grey[50],
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[900]
+                            : Colors.grey[50],
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(

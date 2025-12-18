@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
+import 'terms_acceptance_screen.dart';
 import '../providers/account_provider.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -60,23 +62,40 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       final accountProvider = Provider.of<AccountProvider>(context, listen: false);
       await accountProvider.loadAccounts();
-      print('SplashScreen: Accounts loaded successfully');
     } catch (e) {
-      print('SplashScreen: Error loading accounts: $e');
+      // Silently handle errors
     }
     
     await Future.delayed(const Duration(milliseconds: 500));
     
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
+      // Check if terms have been accepted
+      final prefs = await SharedPreferences.getInstance();
+      final termsAccepted = prefs.getBool('terms_accepted') ?? false;
+      
+      if (termsAccepted) {
+        // Terms already accepted, go to home
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 500),
+          ),
+        );
+      } else {
+        // Terms not accepted, show terms acceptance screen
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const TermsAcceptanceScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 500),
+          ),
+        );
+      }
     }
   }
 

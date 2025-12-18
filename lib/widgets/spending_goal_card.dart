@@ -62,7 +62,9 @@ class SpendingGoalCard extends StatelessWidget {
                               : '${daysRemaining} days remaining',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isOverdue ? Colors.red : Colors.grey[600],
+                            color: isOverdue
+                                ? Colors.red
+                                : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                           ),
                         ),
                     ],
@@ -112,7 +114,7 @@ class SpendingGoalCard extends StatelessWidget {
                       'Saved',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                       ),
                     ),
                     Text(
@@ -131,7 +133,7 @@ class SpendingGoalCard extends StatelessWidget {
                       'Target',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                       ),
                     ),
                     Text(
@@ -148,7 +150,9 @@ class SpendingGoalCard extends StatelessWidget {
             const SizedBox(height: 12),
             LinearProgressIndicator(
               value: progressPercentage > 100 ? 1.0 : progressPercentage / 100,
-              backgroundColor: Colors.grey[200],
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[800]
+                  : Colors.grey[200],
               valueColor: AlwaysStoppedAnimation<Color>(_getGoalColor()),
             ),
             const SizedBox(height: 8),
@@ -159,7 +163,7 @@ class SpendingGoalCard extends StatelessWidget {
                   '${progressPercentage.toStringAsFixed(1)}% complete',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                   ),
                 ),
                 Text(

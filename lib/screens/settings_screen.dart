@@ -6,6 +6,8 @@ import '../providers/database_provider.dart';
 import 'budget_screen.dart';
 import 'export_screen.dart';
 import 'account_management_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_and_conditions_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -86,10 +88,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Privacy & Security',
             [
               _buildSettingsTile(
-                'Data Privacy',
-                'Manage your data privacy settings',
+                'Privacy Policy',
+                'View our privacy policy and data practices',
                 Icons.privacy_tip,
-                () => _showPrivacyDialog(context),
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                ),
+              ),
+              _buildSettingsTile(
+                'Terms and Conditions',
+                'View terms of service and usage',
+                Icons.description,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TermsAndConditionsScreen()),
+                ),
               ),
             ],
           ),
@@ -224,27 +238,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
 
-  void _showPrivacyDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Data Privacy'),
-        content: const Text(
-          'Your financial data is stored locally on your device and is never shared with third parties.\n\n'
-          '• All data is encrypted\n'
-          '• No cloud sync without your permission\n'
-          '• Receipt images are stored locally only\n'
-          '• You can export and delete your data anytime',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
 
 
   void _showHelpDialog(BuildContext context) {
@@ -258,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           '• Contact support team\n'
           '• Feature requests\n'
           '• Bug reports\n\n'
-          'Email: support@spendingtracker.app',
+          'Email: developpers.applications@gmail.com',
         ),
         actions: [
           TextButton(

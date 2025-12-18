@@ -292,7 +292,7 @@ class MonthlyBudgetsTab extends StatelessWidget {
                 Text(
                   'Viewing: ${DateFormat('MMM dd').format(startDate)} - ${DateFormat('MMM dd, yyyy').format(endDate)}',
                   style: TextStyle(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
                   ),

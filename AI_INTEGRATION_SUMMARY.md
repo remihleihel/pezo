@@ -114,3 +114,4 @@ The AI service will automatically:
 - OpenAI API: ~$0.15 per 1M input tokens, ~$0.60 per 1M output tokens
 - With rate limiting (3/day/user) and caching, costs are minimal
 
+

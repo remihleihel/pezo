@@ -65,6 +65,9 @@ dependencies:
   
   # Encryption
   crypto: ^3.0.3
+  
+  # Environment variables
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
@@ -79,6 +82,7 @@ flutter:
   
   assets:
     - assets/images/
+    - .env
 
 flutter_launcher_icons:
   android: "launcher_icon"

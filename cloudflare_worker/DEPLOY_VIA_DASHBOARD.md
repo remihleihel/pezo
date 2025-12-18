@@ -94,3 +94,4 @@ curl -X POST https://pezo-ai-worker.your-username.workers.dev/should-i-buy \
 - Secrets are encrypted and never exposed to the client
 - KV namespace must be created first (you already did this)
 
+

@@ -271,7 +271,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 LinearProgressIndicator(
                   value: percentage / 100,
-                  backgroundColor: Colors.grey[200],
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.grey[200],
                   valueColor: AlwaysStoppedAnimation<Color>(
                     Theme.of(context).primaryColor,
                   ),
