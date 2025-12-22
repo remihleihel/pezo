@@ -211,22 +211,12 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      // Check camera permission if using camera
-      if (source == ImageSource.camera) {
-        final cameraStatus = await Permission.camera.status;
-        if (!cameraStatus.isGranted) {
-          final result = await Permission.camera.request();
-          if (!result.isGranted) {
-            _showErrorDialog('Camera permission is required to take photos');
-            return;
-          }
-        }
-      }
-
       setState(() {
         _isProcessing = true;
       });
 
+      // Let image_picker handle permissions natively - it will show the system permission dialog
+      // when needed. We should NOT check or request permissions manually before this call.
       final XFile? image = await _imagePicker.pickImage(
         source: source,
         imageQuality: 85,
@@ -237,8 +227,20 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
       if (image != null) {
         await _processImage(File(image.path));
       }
+      // If image is null, user likely cancelled - don't show any error
+      // image_picker will handle showing permission dialog automatically when needed
     } catch (e) {
-      _showErrorDialog('Failed to ${source == ImageSource.camera ? 'take photo' : 'pick image'}: $e');
+      // Handle permission errors gracefully
+      if (source == ImageSource.camera && e.toString().contains('permission')) {
+        final cameraStatus = await Permission.camera.status;
+        if (cameraStatus.isPermanentlyDenied) {
+          _showPermissionDeniedDialog();
+        } else {
+          _showErrorDialog('Camera permission is required to take photos. Please grant permission when prompted.');
+        }
+      } else {
+        _showErrorDialog('Failed to ${source == ImageSource.camera ? 'take photo' : 'pick image'}: $e');
+      }
     } finally {
       setState(() {
         _isProcessing = false;
@@ -325,6 +327,31 @@ class _ReceiptScannerScreenState extends State<ReceiptScannerScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Camera Permission Required'),
+        content: const Text(
+          'Camera access is required to scan receipts. Please enable camera permission in Settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: const Text('Open Settings'),
           ),
         ],
       ),
